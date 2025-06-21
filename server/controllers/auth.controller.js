@@ -2,6 +2,10 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// Use the same JWT secret as in middleware/auth.js
+const JWT_SECRET = 'rent-management-secret-key';
+const JWT_EXPIRE = '30d';
+
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
@@ -60,8 +64,8 @@ exports.register = async (req, res) => {
       console.log('Using manual token generation');
       const token = jwt.sign(
         { id: user.id, role: user.role },
-        process.env.JWT_SECRET || 'secret',
-        { expiresIn: process.env.JWT_EXPIRE || '30d' }
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRE }
       );
 
       return res.status(201).json({

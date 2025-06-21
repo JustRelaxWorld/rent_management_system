@@ -16,17 +16,22 @@ api.interceptors.request.use(
     if (token) {
       // Check if token is expired
       if (isTokenExpired(token)) {
-        // Token is expired, remove it
+        console.warn('Token is expired, removing from localStorage and redirecting to login');
         localStorage.removeItem('token');
         window.location.href = '/login';
         return Promise.reject(new Error('Token expired'));
       }
       
+      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+      console.log('Adding Authorization header with token:', token.substring(0, 20) + '...');
       config.headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url} (no token)`);
     }
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -34,13 +39,23 @@ api.interceptors.request.use(
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
   (response) => {
+    console.log(`API Response: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`);
     return response;
   },
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+    if (error.response) {
+      console.error(`API Error Response: ${error.response.status} ${error.config?.method?.toUpperCase()} ${error.config?.url}`, error.response.data);
+      
+      if (error.response.status === 401) {
+        console.warn('Unauthorized response received, clearing token and redirecting to login');
+        // Unauthorized - clear token and redirect to login
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+    } else if (error.request) {
+      console.error('API Error: No response received', error.request);
+    } else {
+      console.error('API Error:', error.message);
     }
     return Promise.reject(error);
   }

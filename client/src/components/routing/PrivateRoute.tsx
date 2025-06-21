@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../utils/api'; // Import our API utility instead of axios
 import { isTokenExpired } from '../../utils/jwt';
 
 interface PrivateRouteProps {
@@ -19,6 +19,7 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles = [] }) => 
       const token = localStorage.getItem('token');
       
       if (!token || isTokenExpired(token)) {
+        console.log('Token is missing or expired');
         localStorage.removeItem('token'); // Remove expired token
         setIsAuthenticated(false);
         setLoading(false);
@@ -26,17 +27,20 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles = [] }) => 
       }
       
       try {
-        // Set auth header
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        console.log('Verifying token with /api/auth/me endpoint');
+        // Get current user using our API utility which has the correct baseURL
+        const res = await api.get('/api/auth/me');
         
-        // Get current user
-        const res = await axios.get('/api/auth/me');
-        
+        console.log('Authentication successful:', res.data);
         setIsAuthenticated(true);
         setUserRole(res.data.data.role);
         setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         // Token is invalid or expired
+        console.error('Authentication failed:', err.message);
+        if (err.response) {
+          console.error('Error response:', err.response.status, err.response.data);
+        }
         localStorage.removeItem('token');
         setIsAuthenticated(false);
         setLoading(false);

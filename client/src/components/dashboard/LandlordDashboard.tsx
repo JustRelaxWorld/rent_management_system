@@ -18,26 +18,47 @@ const LandlordDashboard: React.FC = () => {
         const userResponse = await api.get('/api/auth/me');
         setUser(userResponse.data.data);
 
-        // Get properties owned by landlord
-        const propertiesResponse = await api.get('/api/properties/landlord');
-        setProperties(propertiesResponse.data.data || []);
+        // Get properties owned by landlord - using try/catch for each API call
+        try {
+          const propertiesResponse = await api.get(`/api/properties/landlord/${userResponse.data.data.id}`);
+          setProperties(propertiesResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load properties:', err);
+          // Continue with other requests even if this one fails
+        }
 
         // Get all invoices for properties
-        const invoicesResponse = await api.get('/api/invoices');
-        setInvoices(invoicesResponse.data.data || []);
+        try {
+          const invoicesResponse = await api.get('/api/invoices');
+          setInvoices(invoicesResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load invoices:', err);
+          // Continue with other requests even if this one fails
+        }
 
         // Get maintenance requests
-        const maintenanceResponse = await api.get('/api/maintenance');
-        setMaintenanceRequests(maintenanceResponse.data.data || []);
+        try {
+          const maintenanceResponse = await api.get('/api/maintenance');
+          setMaintenanceRequests(maintenanceResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load maintenance requests:', err);
+          // Continue with other requests even if this one fails
+        }
 
         // Get tenants
-        const tenantsResponse = await api.get('/api/users?role=tenant');
-        setTenants(tenantsResponse.data.data || []);
+        try {
+          const tenantsResponse = await api.get('/api/users?role=tenant');
+          setTenants(tenantsResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load tenants:', err);
+          // Continue with other requests even if this one fails
+        }
 
         setLoading(false);
       } catch (err: any) {
-        setError('Failed to load dashboard data');
+        setError('Failed to load user data');
         setLoading(false);
+        console.error('Dashboard error:', err);
       }
     };
 

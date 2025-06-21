@@ -2,6 +2,10 @@ const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// Use the same JWT secret as in middleware/auth.js
+const JWT_SECRET = 'rent-management-secret-key';
+const JWT_EXPIRE = '30d';
+
 class User {
   constructor(user) {
     this.id = user.id;
@@ -28,6 +32,25 @@ class User {
         )
       `);
       console.log('Users table created or already exists');
+      
+      // Check if phone column exists, add it if it doesn't
+      try {
+        await pool.query(`
+          SELECT phone FROM users LIMIT 1
+        `);
+        console.log('Phone column exists in users table');
+      } catch (error) {
+        if (error.message.includes("Unknown column 'phone'")) {
+          console.log('Adding phone column to users table');
+          await pool.query(`
+            ALTER TABLE users ADD COLUMN phone VARCHAR(20) AFTER password
+          `);
+          console.log('Phone column added to users table');
+        } else {
+          throw error;
+        }
+      }
+      
       return true;
     } catch (error) {
       console.error('Error creating users table:', error);
@@ -152,8 +175,8 @@ class User {
       console.log('Generating JWT token for user:', { id: this.id, role: this.role });
       const token = jwt.sign(
         { id: this.id, role: this.role },
-        process.env.JWT_SECRET || 'secret',
-        { expiresIn: process.env.JWT_EXPIRE || '30d' }
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRE }
       );
       console.log('JWT token generated successfully');
       return token;

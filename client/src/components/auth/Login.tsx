@@ -25,15 +25,35 @@ const Login: React.FC = () => {
     setError(null);
     
     try {
+      console.log('Submitting login data:', { email, password: '******' });
+      
       const res = await api.post('/api/auth/login', {
         email,
         password
       });
       
+      console.log('Login successful:', res.data);
+      
       // Save token to localStorage
       localStorage.setItem('token', res.data.token);
+      console.log('Token saved to localStorage:', res.data.token.substring(0, 20) + '...');
+      
+      // Save user data for convenience
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      console.log('User data saved to localStorage:', res.data.user);
+      
+      // Test the /me endpoint to verify the token works
+      try {
+        console.log('Testing /me endpoint with the new token...');
+        const meResponse = await api.get('/api/auth/me');
+        console.log('/me endpoint response:', meResponse.data);
+      } catch (meError: any) {
+        console.error('/me endpoint test failed:', meError.message);
+        // Continue anyway, don't block the login process
+      }
       
       // Redirect based on user role
+      console.log('Redirecting based on role:', res.data.user.role);
       if (res.data.user.role === 'tenant') {
         navigate('/tenant/dashboard');
       } else if (res.data.user.role === 'landlord') {
@@ -44,6 +64,7 @@ const Login: React.FC = () => {
         navigate('/dashboard');
       }
     } catch (err: any) {
+      console.error('Login error:', err);
       setError(err.response?.data?.message || 'Login failed. Please try again.');
       setLoading(false);
     }

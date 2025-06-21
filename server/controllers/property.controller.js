@@ -183,6 +183,8 @@ exports.deleteProperty = async (req, res) => {
 // @access  Public
 exports.getLandlordProperties = async (req, res) => {
   try {
+    console.log('GET /api/properties/landlord/:id - Requested landlord ID:', req.params.id);
+    
     // Check if landlord exists
     const landlord = await User.findById(req.params.id);
     

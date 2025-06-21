@@ -15,8 +15,8 @@ const router = express.Router();
 
 // Public routes
 router.get('/', getProperties);
-router.get('/:id', getProperty);
 router.get('/landlord/:id', getLandlordProperties);
+router.get('/:id', getProperty);
 
 // Landlord only routes
 router.post('/', protect, authorize('landlord', 'admin'), createProperty);
@@ -24,4 +24,4 @@ router.put('/:id', protect, authorize('landlord', 'admin'), updateProperty);
 router.delete('/:id', protect, authorize('landlord', 'admin'), deleteProperty);
 router.post('/:id/assign', protect, authorize('landlord', 'admin'), assignTenant);
 
-module.exports = router; 
+module.exports = router;
