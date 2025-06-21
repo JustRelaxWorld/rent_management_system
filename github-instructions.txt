@@ -1,0 +1,22 @@
+To push your rent-management-system to GitHub:
+
+1. Create a new repository on GitHub:
+   - Go to https://github.com/new
+   - Name it "rent-management-system"
+   - Do NOT initialize with README, .gitignore, or license
+   - Click "Create repository"
+
+2. Run these commands in your terminal:
+   ```
+   git remote add origin https://github.com/yourusername/rent-management-system.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+3. Replace "yourusername" with your actual GitHub username
+
+4. If you're using GitHub authentication:
+   - You might be prompted to enter your GitHub credentials
+   - Or you might need to use a personal access token if you have 2FA enabled
+
+5. After successful push, refresh your GitHub repository page to see your code 
