@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import api from '../../utils/api';
+import { useAuth } from '../../utils/auth-context';
 
 const TenantDashboard: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
-  const [properties, setProperties] = useState<any[]>([]);
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,17 +14,21 @@ const TenantDashboard: React.FC = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Get current user
-        const userResponse = await api.get('/api/auth/me');
-        setUser(userResponse.data.data);
-
         // Get invoices
-        const invoicesResponse = await api.get('/api/invoices');
-        setInvoices(invoicesResponse.data.data);
+        try {
+          const invoicesResponse = await api.get('/api/invoices');
+          setInvoices(invoicesResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load invoices:', err);
+        }
 
         // Get maintenance requests
-        const maintenanceResponse = await api.get('/api/maintenance');
-        setMaintenanceRequests(maintenanceResponse.data.data);
+        try {
+          const maintenanceResponse = await api.get('/api/maintenance');
+          setMaintenanceRequests(maintenanceResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load maintenance requests:', err);
+        }
 
         setLoading(false);
       } catch (err: any) {
@@ -32,8 +37,12 @@ const TenantDashboard: React.FC = () => {
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    if (user) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -51,6 +60,16 @@ const TenantDashboard: React.FC = () => {
       <Container className="py-5">
         <div className="alert alert-danger" role="alert">
           {error}
+        </div>
+      </Container>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Container className="py-5">
+        <div className="alert alert-warning" role="alert">
+          Please log in to view your dashboard.
         </div>
       </Container>
     );
@@ -118,6 +137,22 @@ const TenantDashboard: React.FC = () => {
                 </span>
               </div>
               <Button variant="primary" size="sm">New Request</Button>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mb-4">
+        <Col md={12}>
+          <Card className="shadow-sm">
+            <Card.Header className="bg-primary text-white">
+              <h5 className="mb-0">Find Your Next Home</h5>
+            </Card.Header>
+            <Card.Body>
+              <p>Looking for a new place? Browse our available properties and find your perfect match.</p>
+              <Link to="/tenant/properties">
+                <Button variant="primary">Browse Properties</Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -210,6 +245,36 @@ const TenantDashboard: React.FC = () => {
                   <Button variant="link" size="sm">View All</Button>
                 </div>
               )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mt-4">
+        <Col md={6} className="mb-4">
+          <Card className="h-100">
+            <Card.Body>
+              <Card.Title>My Applications</Card.Title>
+              <Card.Text>
+                View and manage your rental applications.
+              </Card.Text>
+              <Link to="/tenant/applications" className="btn btn-primary">
+                View Applications
+              </Link>
+            </Card.Body>
+          </Card>
+        </Col>
+        
+        <Col md={6} className="mb-4">
+          <Card className="h-100">
+            <Card.Body>
+              <Card.Title>Browse Properties</Card.Title>
+              <Card.Text>
+                Find and apply for available rental properties.
+              </Card.Text>
+              <Link to="/tenant/properties" className="btn btn-primary">
+                Browse Properties
+              </Link>
             </Card.Body>
           </Card>
         </Col>

@@ -186,6 +186,28 @@ const createTables = async (connection) => {
     `);
     console.log('Notifications table created or already exists');
     
+    // Create rental_applications table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS rental_applications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        property_id INT NOT NULL,
+        tenant_id INT NOT NULL,
+        landlord_id INT NOT NULL,
+        status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+        move_in_date DATE,
+        monthly_income DECIMAL(10, 2),
+        employment_status VARCHAR(50),
+        employer VARCHAR(100),
+        additional_notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+        FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (landlord_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    console.log('Rental applications table created or already exists');
+    
   } catch (error) {
     console.error('Error creating tables:', error);
     throw error;

@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import api from '../../utils/api';
+import { useAuth } from '../../utils/auth-context';
 
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +12,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
+  const { login } = useAuth();
   
   const { email, password } = formData;
   
@@ -25,47 +26,47 @@ const Login: React.FC = () => {
     setError(null);
     
     try {
-      console.log('Submitting login data:', { email, password: '******' });
+      // Use the auth context login function
+      await login(email, password);
       
-      const res = await api.post('/api/auth/login', {
-        email,
-        password
-      });
+      // After successful login, get user data from localStorage
+      const userData = localStorage.getItem('user');
+      let userRole = '';
       
-      console.log('Login successful:', res.data);
-      
-      // Save token to localStorage
-      localStorage.setItem('token', res.data.token);
-      console.log('Token saved to localStorage:', res.data.token.substring(0, 20) + '...');
-      
-      // Save user data for convenience
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      console.log('User data saved to localStorage:', res.data.user);
-      
-      // Test the /me endpoint to verify the token works
-      try {
-        console.log('Testing /me endpoint with the new token...');
-        const meResponse = await api.get('/api/auth/me');
-        console.log('/me endpoint response:', meResponse.data);
-      } catch (meError: any) {
-        console.error('/me endpoint test failed:', meError.message);
-        // Continue anyway, don't block the login process
-      }
-      
-      // Redirect based on user role
-      console.log('Redirecting based on role:', res.data.user.role);
-      if (res.data.user.role === 'tenant') {
-        navigate('/tenant/dashboard');
-      } else if (res.data.user.role === 'landlord') {
-        navigate('/landlord/dashboard');
-      } else if (res.data.user.role === 'admin') {
-        navigate('/admin/dashboard');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          userRole = user.role;
+          console.log('User role from localStorage:', userRole);
+          
+          // Redirect based on user role
+          console.log('Redirecting based on role:', userRole);
+          if (userRole === 'tenant') {
+            navigate('/tenant-dashboard');
+          } else if (userRole === 'landlord') {
+            navigate('/landlord-dashboard');
+          } else if (userRole === 'admin') {
+            navigate('/admin/dashboard');
+          } else {
+            navigate('/');
+          }
+        } catch (parseError) {
+          console.error('Error parsing user data:', parseError);
+          setError('Error processing user data. Please try again.');
+          setLoading(false);
+        }
       } else {
-        navigate('/dashboard');
+        console.error('No user data found in localStorage after login');
+        setError('Login successful but user data not found. Please try again.');
+        setLoading(false);
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      if (err.message === 'Invalid response format from login API') {
+        setError('Server response format error. Please contact support.');
+      } else {
+        setError(err.response?.data?.message || 'Login failed. Please try again.');
+      }
       setLoading(false);
     }
   };

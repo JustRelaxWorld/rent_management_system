@@ -1,93 +1,67 @@
 import React, { useState, useEffect } from 'react';
-import { Navbar, Nav, Container, NavDropdown } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Navbar, Nav, Container, Button, NavDropdown } from 'react-bootstrap';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
+import { useAuth } from '../../utils/auth-context';
 
 const Header: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    
-    const fetchUser = async () => {
-      try {
-        // Get current user using our API utility
-        const res = await api.get('/api/auth/me');
-        setUser(res.data.data);
-      } catch (err) {
-        // Token is invalid or expired
-        localStorage.removeItem('token');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchUser();
-  }, []);
-  
-  const logoutHandler = async () => {
-    try {
-      await api.get('/api/auth/logout');
-      localStorage.removeItem('token');
-      setUser(null);
-      window.location.href = '/';
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
+  
+  const guestLinks = (
+    <>
+      <Nav.Link as={Link} to="/login">Login</Nav.Link>
+      <Nav.Link as={Link} to="/register">Register</Nav.Link>
+    </>
+  );
+  
+  const authLinks = (
+    <>
+      {user?.role === 'tenant' && (
+        <>
+          <Nav.Link as={Link} to="/tenant">Dashboard</Nav.Link>
+          <Nav.Link as={Link} to="/tenant/properties">Browse Properties</Nav.Link>
+        </>
+      )}
+      
+      {user?.role === 'landlord' && (
+        <>
+          <Nav.Link as={Link} to="/landlord">Dashboard</Nav.Link>
+          <NavDropdown title="Properties" id="properties-dropdown">
+            <NavDropdown.Item as={Link} to="/landlord/properties">My Properties</NavDropdown.Item>
+            <NavDropdown.Item as={Link} to="/landlord/properties/add">Add Property</NavDropdown.Item>
+          </NavDropdown>
+          <Nav.Link as={Link} to="/landlord/applications">My Applications</Nav.Link>
+        </>
+      )}
+      
+      {user?.role === 'admin' && (
+        <Nav.Link as={Link} to="/admin">Admin Dashboard</Nav.Link>
+      )}
+      
+      <NavDropdown title={user?.name || 'Account'} id="account-dropdown">
+        <NavDropdown.Item>Profile</NavDropdown.Item>
+        <NavDropdown.Divider />
+        <NavDropdown.Item onClick={handleLogout}>Logout</NavDropdown.Item>
+      </NavDropdown>
+    </>
+  );
   
   return (
     <header>
-      <Navbar bg="primary" variant="dark" expand="lg" collapseOnSelect>
+      <Navbar bg="dark" variant="dark" expand="lg" collapseOnSelect>
         <Container>
-          <Navbar.Brand as={Link} to="/">Rent Management System</Navbar.Brand>
-          
+          <Navbar.Brand as={Link} to="/">Rent Management</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="ms-auto">
-              {!loading && (
-                <>
-                  {user ? (
-                    <>
-                      {/* Dashboard link based on user role */}
-                      {user.role === 'tenant' && (
-                        <Nav.Link as={Link} to="/tenant/dashboard">Dashboard</Nav.Link>
-                      )}
-                      
-                      {user.role === 'landlord' && (
-                        <Nav.Link as={Link} to="/landlord/dashboard">Dashboard</Nav.Link>
-                      )}
-                      
-                      {user.role === 'admin' && (
-                        <Nav.Link as={Link} to="/admin/dashboard">Dashboard</Nav.Link>
-                      )}
-                      
-                      <NavDropdown title={user.name} id="username">
-                        <NavDropdown.Item as={Link} to="/profile">Profile</NavDropdown.Item>
-                        <NavDropdown.Item onClick={logoutHandler}>
-                          Logout
-                        </NavDropdown.Item>
-                      </NavDropdown>
-                    </>
-                  ) : (
-                    <>
-                      <Nav.Link as={Link} to="/login">
-                        <i className="fas fa-user"></i> Login
-                      </Nav.Link>
-                      <Nav.Link as={Link} to="/register">
-                        <i className="fas fa-user-plus"></i> Register
-                      </Nav.Link>
-                    </>
-                  )}
-                </>
-              )}
+              <Nav.Link as={Link} to="/">Home</Nav.Link>
+              {isAuthenticated ? authLinks : guestLinks}
             </Nav>
           </Navbar.Collapse>
         </Container>

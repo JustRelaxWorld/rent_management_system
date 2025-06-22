@@ -1,26 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge } from 'react-bootstrap';
 import api from '../../utils/api';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../utils/auth-context';
 
 const LandlordDashboard: React.FC = () => {
-  const [user, setUser] = useState<any>(null);
+  const { user } = useAuth();
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [maintenanceRequests, setMaintenanceRequests] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Get current user
-        const userResponse = await api.get('/api/auth/me');
-        setUser(userResponse.data.data);
+        if (!user) return;
 
         // Get properties owned by landlord - using try/catch for each API call
         try {
-          const propertiesResponse = await api.get(`/api/properties/landlord/${userResponse.data.data.id}`);
+          const propertiesResponse = await api.get(`/api/properties/landlord/${user.id}`);
           setProperties(propertiesResponse.data.data || []);
         } catch (err) {
           console.error('Failed to load properties:', err);
@@ -54,16 +55,29 @@ const LandlordDashboard: React.FC = () => {
           // Continue with other requests even if this one fails
         }
 
+        // Get applications
+        try {
+          const applicationsResponse = await api.get('/api/applications/landlord');
+          setApplications(applicationsResponse.data.data || []);
+        } catch (err) {
+          console.error('Failed to load applications:', err);
+          // Continue with other requests even if this one fails
+        }
+
         setLoading(false);
       } catch (err: any) {
-        setError('Failed to load user data');
+        setError('Failed to load dashboard data');
         setLoading(false);
         console.error('Dashboard error:', err);
       }
     };
 
-    fetchDashboardData();
-  }, []);
+    if (user) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -86,6 +100,16 @@ const LandlordDashboard: React.FC = () => {
     );
   }
 
+  if (!user) {
+    return (
+      <Container className="py-5">
+        <div className="alert alert-warning" role="alert">
+          Please log in to view your dashboard.
+        </div>
+      </Container>
+    );
+  }
+
   // Calculate statistics
   const totalProperties = properties.length;
   const occupiedProperties = properties.filter(property => !property.is_available).length;
@@ -93,6 +117,7 @@ const LandlordDashboard: React.FC = () => {
   const totalRent = properties.reduce((sum, property) => sum + parseFloat(property.rent_amount || 0), 0);
   const pendingPayments = invoices.filter(invoice => invoice.status === 'pending').length;
   const pendingMaintenanceRequests = maintenanceRequests.filter(req => req.status !== 'completed').length;
+  const pendingApplications = applications.filter(app => app.status === 'pending').length;
 
   return (
     <Container className="py-5">
@@ -134,7 +159,9 @@ const LandlordDashboard: React.FC = () => {
                 <span>Total Monthly Rent:</span>
                 <span className="fw-bold">${totalRent.toFixed(2)}</span>
               </div>
-              <Button variant="primary" size="sm">Manage Properties</Button>
+              <Link to="/landlord/properties">
+                <Button variant="primary" size="sm">Manage Properties</Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -151,6 +178,10 @@ const LandlordDashboard: React.FC = () => {
               <div className="d-flex justify-content-between mb-3">
                 <span>Maintenance Requests:</span>
                 <span className="fw-bold text-warning">{pendingMaintenanceRequests}</span>
+              </div>
+              <div className="d-flex justify-content-between mb-3">
+                <span>Pending Applications:</span>
+                <span className="fw-bold text-info">{pendingApplications}</span>
               </div>
               <div className="d-flex justify-content-between mb-3">
                 <span>Vacant Properties:</span>
@@ -199,7 +230,9 @@ const LandlordDashboard: React.FC = () => {
               )}
               {properties.length > 5 && (
                 <div className="text-end">
-                  <Button variant="link" size="sm">View All</Button>
+                  <Link to="/landlord/properties">
+                    <Button variant="link" size="sm">View All</Button>
+                  </Link>
                 </div>
               )}
             </Card.Body>
@@ -207,6 +240,56 @@ const LandlordDashboard: React.FC = () => {
         </Col>
 
         <Col md={6} className="mb-4">
+          <Card className="shadow-sm">
+            <Card.Header className="bg-primary text-white">
+              <h5 className="mb-0">Recent Applications</h5>
+            </Card.Header>
+            <Card.Body>
+              {applications.length > 0 ? (
+                <Table responsive hover>
+                  <thead>
+                    <tr>
+                      <th>Property</th>
+                      <th>Tenant</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications.slice(0, 5).map(app => (
+                      <tr key={app.id}>
+                        <td>{app.property_title || 'Unknown'}</td>
+                        <td>{app.tenant_name || 'Unknown'}</td>
+                        <td>{new Date(app.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <Badge bg={
+                            app.status === 'approved' ? 'success' :
+                            app.status === 'rejected' ? 'danger' : 'warning'
+                          }>
+                            {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              ) : (
+                <p className="text-muted">No applications found.</p>
+              )}
+              {applications.length > 5 && (
+                <div className="text-end">
+                  <Link to="/landlord/applications">
+                    <Button variant="link" size="sm">View All</Button>
+                  </Link>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row>
+        <Col md={12} className="mb-4">
           <Card className="shadow-sm">
             <Card.Header className="bg-primary text-white">
               <h5 className="mb-0">Maintenance Requests</h5>
@@ -248,6 +331,50 @@ const LandlordDashboard: React.FC = () => {
                   <Button variant="link" size="sm">View All</Button>
                 </div>
               )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mt-4">
+        <Col md={4} className="mb-4">
+          <Card className="h-100">
+            <Card.Body>
+              <Card.Title>Rental Applications</Card.Title>
+              <Card.Text>
+                Review and manage tenant applications for your properties.
+              </Card.Text>
+              <Link to="/landlord/applications" className="btn btn-primary">
+                View Applications
+              </Link>
+            </Card.Body>
+          </Card>
+        </Col>
+        
+        <Col md={4} className="mb-4">
+          <Card className="h-100">
+            <Card.Body>
+              <Card.Title>My Properties</Card.Title>
+              <Card.Text>
+                Manage your rental properties and listings.
+              </Card.Text>
+              <Link to="/landlord/properties" className="btn btn-primary">
+                View Properties
+              </Link>
+            </Card.Body>
+          </Card>
+        </Col>
+        
+        <Col md={4} className="mb-4">
+          <Card className="h-100">
+            <Card.Body>
+              <Card.Title>Add Property</Card.Title>
+              <Card.Text>
+                List a new property for rent.
+              </Card.Text>
+              <Link to="/landlord/properties/add" className="btn btn-primary">
+                Add Property
+              </Link>
             </Card.Body>
           </Card>
         </Col>

@@ -1,26 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const { getUsers, getUser, updateUser, deleteUser } = require('../controllers/user.controller');
 
-// Import controllers
-// Note: We'll need to create a user controller, but for now let's just set up the routes
-// const { getUsers, getUser, updateUser, deleteUser } = require('../controllers/user.controller');
+// Get all users - allow both admin and landlord to access
+router.get('/', protect, authorize('admin', 'landlord'), getUsers);
 
-// Define routes
-router.get('/', protect, authorize('admin'), (req, res) => {
-  res.status(200).json({ success: true, message: 'Get all users' });
-});
+// Get single user
+router.get('/:id', protect, getUser);
 
-router.get('/:id', protect, (req, res) => {
-  res.status(200).json({ success: true, message: `Get user with id ${req.params.id}` });
-});
+// Update user
+router.put('/:id', protect, updateUser);
 
-router.put('/:id', protect, (req, res) => {
-  res.status(200).json({ success: true, message: `Update user with id ${req.params.id}` });
-});
-
-router.delete('/:id', protect, authorize('admin'), (req, res) => {
-  res.status(200).json({ success: true, message: `Delete user with id ${req.params.id}` });
-});
+// Delete user - admin only
+router.delete('/:id', protect, authorize('admin'), deleteUser);
 
 module.exports = router; 

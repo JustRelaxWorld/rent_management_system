@@ -6,11 +6,34 @@ class Notification {
     this.user_id = notification.user_id;
     this.title = notification.title;
     this.message = notification.message;
-    this.type = notification.type; // invoice, payment, maintenance, system
-    this.related_id = notification.related_id; // ID of related entity (invoice_id, payment_id, etc.)
+    this.type = notification.type; // application, payment, maintenance, etc.
+    this.reference_id = notification.reference_id;
     this.is_read = notification.is_read;
     this.created_at = notification.created_at;
-    this.updated_at = notification.updated_at;
+  }
+
+  // Create notifications table if it doesn't exist
+  static async createTable() {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          title VARCHAR(100) NOT NULL,
+          message TEXT NOT NULL,
+          type VARCHAR(50),
+          reference_id INT,
+          is_read BOOLEAN DEFAULT false,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      console.log('Notifications table created or already exists');
+      return true;
+    } catch (error) {
+      console.error('Error creating notifications table:', error);
+      throw error;
+    }
   }
 
   // Create a new notification
@@ -18,19 +41,84 @@ class Notification {
     try {
       const [result] = await pool.execute(
         `INSERT INTO notifications 
-        (user_id, title, message, type, related_id, is_read) 
-        VALUES (?, ?, ?, ?, ?, ?)`,
+        (user_id, title, message, type, reference_id) 
+        VALUES (?, ?, ?, ?, ?)`,
         [
           notificationData.user_id,
           notificationData.title,
           notificationData.message,
-          notificationData.type,
-          notificationData.related_id || null,
-          notificationData.is_read || false
+          notificationData.type || null,
+          notificationData.reference_id || null
         ]
       );
 
-      return { id: result.insertId, ...notificationData };
+      return { id: result.insertId, ...notificationData, is_read: false };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get notifications for a user
+  static async findByUserId(userId) {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+        [userId]
+      );
+      
+      return rows.map(row => new Notification(row));
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Mark notification as read
+  static async markAsRead(id) {
+    try {
+      const [result] = await pool.execute(
+        'UPDATE notifications SET is_read = true WHERE id = ?',
+        [id]
+      );
+
+      return result.affectedRows > 0;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Mark all notifications as read for a user
+  static async markAllAsRead(userId) {
+    try {
+      const [result] = await pool.execute(
+        'UPDATE notifications SET is_read = true WHERE user_id = ?',
+        [userId]
+      );
+
+      return result.affectedRows > 0;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Delete notification
+  static async delete(id) {
+    try {
+      const [result] = await pool.execute('DELETE FROM notifications WHERE id = ?', [id]);
+      return result.affectedRows > 0;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Get unread notification count for a user
+  static async getUnreadCount(userId) {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = false',
+        [userId]
+      );
+      
+      return rows[0].count;
     } catch (error) {
       throw error;
     }
@@ -51,72 +139,6 @@ class Notification {
     }
   }
 
-  // Get notifications by user ID
-  static async findByUserId(userId, limit = 50, offset = 0) {
-    try {
-      const [rows] = await pool.execute(
-        'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [userId, limit, offset]
-      );
-      
-      return rows.map(row => new Notification(row));
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Get unread notifications count by user ID
-  static async getUnreadCount(userId) {
-    try {
-      const [rows] = await pool.execute(
-        'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = false',
-        [userId]
-      );
-      
-      return rows[0].count;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Mark notification as read
-  static async markAsRead(id) {
-    try {
-      const [result] = await pool.execute(
-        'UPDATE notifications SET is_read = true, updated_at = NOW() WHERE id = ?',
-        [id]
-      );
-      
-      return result.affectedRows > 0;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Mark all notifications as read for a user
-  static async markAllAsRead(userId) {
-    try {
-      const [result] = await pool.execute(
-        'UPDATE notifications SET is_read = true, updated_at = NOW() WHERE user_id = ? AND is_read = false',
-        [userId]
-      );
-      
-      return result.affectedRows;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Delete notification
-  static async delete(id) {
-    try {
-      const [result] = await pool.execute('DELETE FROM notifications WHERE id = ?', [id]);
-      return result.affectedRows > 0;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   // Create invoice notification
   static async createInvoiceNotification(invoice, tenant) {
     try {
@@ -125,7 +147,7 @@ class Notification {
         title: 'New Invoice',
         message: `You have a new invoice of ${invoice.amount} due on ${new Date(invoice.due_date).toLocaleDateString()}`,
         type: 'invoice',
-        related_id: invoice.id
+        reference_id: invoice.id
       };
       
       return await Notification.create(notificationData);
@@ -143,7 +165,7 @@ class Notification {
         title: 'Payment Confirmed',
         message: `Your payment of ${payment.amount} has been confirmed.`,
         type: 'payment',
-        related_id: payment.id
+        reference_id: payment.id
       };
       
       await Notification.create(tenantNotification);
@@ -154,7 +176,7 @@ class Notification {
         title: 'Payment Received',
         message: `Payment of ${payment.amount} received from ${tenant.name}.`,
         type: 'payment',
-        related_id: payment.id
+        reference_id: payment.id
       };
       
       await Notification.create(landlordNotification);
@@ -175,7 +197,7 @@ class Notification {
           title: 'New Maintenance Request',
           message: `${tenant.name} has submitted a new maintenance request for ${property.title}.`,
           type: 'maintenance',
-          related_id: maintenance.id
+          reference_id: maintenance.id
         };
         
         await Notification.create(landlordNotification);
@@ -188,7 +210,7 @@ class Notification {
           title: 'Maintenance Update',
           message: `Your maintenance request for ${property.title} has been updated to ${maintenance.status}.`,
           type: 'maintenance',
-          related_id: maintenance.id
+          reference_id: maintenance.id
         };
         
         await Notification.create(tenantNotification);

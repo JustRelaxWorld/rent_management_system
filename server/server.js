@@ -16,6 +16,7 @@ const invoiceRoutes = require('./routes/invoice.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const maintenanceRoutes = require('./routes/maintenance.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const applicationRoutes = require('./routes/application.routes');
 
 // Initialize database
 const initializeDB = async () => {
@@ -58,6 +59,7 @@ app.get('/api/test', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/properties', propertyRoutes);
+app.use('/api/applications', applicationRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
