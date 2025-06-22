@@ -89,7 +89,9 @@ const TenantDashboard: React.FC = () => {
               <p><strong>Name:</strong> {user?.name}</p>
               <p><strong>Email:</strong> {user?.email}</p>
               <p><strong>Phone:</strong> {user?.phone}</p>
-              <Button variant="outline-primary" size="sm">Edit Profile</Button>
+              <Link to="/profile/edit">
+                <Button variant="outline-primary" size="sm">Edit Profile</Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -136,7 +138,9 @@ const TenantDashboard: React.FC = () => {
                   {maintenanceRequests.filter(req => req.status === 'completed').length}
                 </span>
               </div>
-              <Button variant="primary" size="sm">New Request</Button>
+              <Link to="/tenant/maintenance/new">
+                <Button variant="primary" size="sm">New Request</Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -242,7 +246,9 @@ const TenantDashboard: React.FC = () => {
               )}
               {maintenanceRequests.length > 5 && (
                 <div className="text-end">
-                  <Button variant="link" size="sm">View All</Button>
+                  <Link to="/tenant/maintenance">
+                    <Button variant="link" size="sm">View All</Button>
+                  </Link>
                 </div>
               )}
             </Card.Body>

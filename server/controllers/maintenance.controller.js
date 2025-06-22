@@ -107,6 +107,7 @@ exports.createMaintenanceRequest = async (req, res) => {
       tenant_id: req.user.id,
       title,
       description,
+      type: req.body.type || 'other',
       priority: priority || 'medium',
       status: 'pending',
       request_date: new Date()
@@ -192,10 +193,23 @@ exports.updateMaintenanceRequest = async (req, res) => {
     
     // If status was updated by landlord, create notification for tenant
     if (req.body.status && req.user.role === 'landlord') {
-      const tenant = await User.findById(request.tenant_id);
-      const landlord = req.user;
-      
-      await Notification.createMaintenanceNotification(request, property, tenant, landlord);
+      try {
+        console.log('Creating notification for tenant...');
+        console.log('Request:', request);
+        console.log('Property:', property);
+        
+        const tenant = await User.findById(request.tenant_id);
+        console.log('Tenant:', tenant);
+        
+        const landlord = req.user;
+        console.log('Landlord:', landlord);
+        
+        await Notification.createMaintenanceNotification(request, property, tenant, landlord);
+        console.log('Notification created successfully');
+      } catch (notificationError) {
+        console.error('Error creating notification:', notificationError);
+        // Continue execution even if notification fails
+      }
     }
     
     res.status(200).json({

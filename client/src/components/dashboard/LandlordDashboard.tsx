@@ -133,7 +133,9 @@ const LandlordDashboard: React.FC = () => {
               <p><strong>Name:</strong> {user?.name}</p>
               <p><strong>Email:</strong> {user?.email}</p>
               <p><strong>Phone:</strong> {user?.phone || 'Not provided'}</p>
-              <Button variant="outline-primary" size="sm">Edit Profile</Button>
+              <Link to="/profile/edit">
+                <Button variant="outline-primary" size="sm">Edit Profile</Button>
+              </Link>
             </Card.Body>
           </Card>
         </Col>
@@ -177,7 +179,9 @@ const LandlordDashboard: React.FC = () => {
               </div>
               <div className="d-flex justify-content-between mb-3">
                 <span>Maintenance Requests:</span>
-                <span className="fw-bold text-warning">{pendingMaintenanceRequests}</span>
+                <Link to="/landlord/maintenance">
+                  <span className="fw-bold text-warning">{pendingMaintenanceRequests}</span>
+                </Link>
               </div>
               <div className="d-flex justify-content-between mb-3">
                 <span>Pending Applications:</span>

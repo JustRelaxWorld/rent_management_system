@@ -20,13 +20,14 @@ class Maintenance {
     try {
       const [result] = await pool.execute(
         `INSERT INTO maintenance_requests 
-        (property_id, tenant_id, title, description, status, priority, request_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        (property_id, tenant_id, title, description, type, status, priority, request_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           maintenanceData.property_id,
           maintenanceData.tenant_id,
           maintenanceData.title,
           maintenanceData.description,
+          maintenanceData.type || 'other',
           maintenanceData.status || 'pending',
           maintenanceData.priority || 'medium',
           maintenanceData.request_date || new Date()

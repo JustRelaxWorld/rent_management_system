@@ -190,8 +190,22 @@ class Notification {
   // Create maintenance notification
   static async createMaintenanceNotification(maintenance, property, tenant, landlord) {
     try {
+      console.log('Creating maintenance notification with:', {
+        maintenance: maintenance ? { id: maintenance.id, status: maintenance.status } : 'null',
+        property: property ? { id: property.id, title: property.title } : 'null',
+        tenant: tenant ? { id: tenant.id, name: tenant.name } : 'null',
+        landlord: landlord ? { id: landlord.id, name: landlord.name } : 'null'
+      });
+      
+      // Check if all required data is available
+      if (!maintenance || !property || !tenant || !landlord) {
+        console.error('Missing data for notification:', { maintenance, property, tenant, landlord });
+        return false;
+      }
+      
       // Notification for landlord when tenant creates request
       if (maintenance.status === 'pending') {
+        console.log('Creating notification for landlord about new maintenance request');
         const landlordNotification = {
           user_id: landlord.id,
           title: 'New Maintenance Request',
@@ -205,6 +219,7 @@ class Notification {
       
       // Notification for tenant when status changes
       else {
+        console.log('Creating notification for tenant about status update');
         const tenantNotification = {
           user_id: tenant.id,
           title: 'Maintenance Update',
@@ -218,7 +233,8 @@ class Notification {
       
       return true;
     } catch (error) {
-      throw error;
+      console.error('Error creating maintenance notification:', error);
+      return false; // Don't throw the error, just return false to prevent breaking the main flow
     }
   }
 
