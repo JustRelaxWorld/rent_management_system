@@ -43,6 +43,13 @@ LOGIN_RATE_LIMIT_MAX=5
 
 # Frontend URL (for OAuth redirects)
 FRONTEND_URL=http://localhost:3000
+
+# M-Pesa API Configuration
+MPESA_CONSUMER_KEY=your-mpesa-consumer-key
+MPESA_CONSUMER_SECRET=your-mpesa-consumer-secret
+MPESA_SHORTCODE=174379
+MPESA_PASSKEY=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
+MPESA_CALLBACK_URL=https://your-domain.com/api/mpesa/callback
 `;
 
 console.log('Environment Variables Template:');

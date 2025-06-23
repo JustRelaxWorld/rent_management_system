@@ -9,11 +9,12 @@ const {
 } = require('../controllers/auth.controller');
 
 const { protect } = require('../middleware/auth');
+const { uploadRoleDocument } = require('../middleware/upload');
 
 const router = express.Router();
 
 // Public routes
-router.post('/register', register);
+router.post('/register', uploadRoleDocument, register);
 router.post('/login', login);
 
 // Protected routes

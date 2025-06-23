@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const LandlordDetails = require('../models/LandlordDetails');
+const TenantDetails = require('../models/TenantDetails');
 const { generateToken } = require('../middleware/auth');
 
 // @desc    Register user
@@ -6,7 +8,15 @@ const { generateToken } = require('../middleware/auth');
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, phone, password, role } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide name, email and password'
+      });
+    }
 
     // Check if user already exists
     const userExists = await User.findByEmail(email);
@@ -18,15 +28,65 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Validate role-specific required fields
+    if (role === 'landlord') {
+      if (!req.body.mpesaNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'M-Pesa number is required for landlords'
+        });
+      }
+      
+      if (!req.file && (!req.files || !req.files.ownershipDocument)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Property ownership document is required for landlords'
+        });
+      }
+    } else if (role === 'tenant') {
+      if (!req.body.idNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID number is required for tenants'
+        });
+      }
+    }
+
     // Create user
     const user = new User({
       name,
       email,
+      phone,
       password,
       role
     });
     
     const userId = await user.save();
+
+    // Create role-specific details
+    try {
+      if (role === 'landlord') {
+        const docPath = req.file ? req.file.path : 
+          (req.files && req.files.ownershipDocument ? req.files.ownershipDocument[0].path : '');
+          
+        await LandlordDetails.create({
+          user_id: userId,
+          mpesa_number: req.body.mpesaNumber,
+          ownership_document_path: docPath
+        });
+      } else if (role === 'tenant') {
+        const leasePath = req.file ? req.file.path : 
+          (req.files && req.files.leaseAgreement ? req.files.leaseAgreement[0].path : null);
+          
+        await TenantDetails.create({
+          user_id: userId,
+          id_number: req.body.idNumber,
+          lease_agreement_path: leasePath
+        });
+      }
+    } catch (detailsError) {
+      console.error('Error creating role-specific details:', detailsError);
+    }
 
     // Generate token
     const token = generateToken(userId);

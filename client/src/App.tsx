@@ -35,6 +35,9 @@ import MaintenanceRequestForm from './components/properties/MaintenanceRequestFo
 import MaintenanceRequestList from './components/properties/MaintenanceRequestList';
 import MaintenanceManagement from './components/properties/MaintenanceManagement';
 
+// Payment Components
+import PaymentsPage from './components/payments/PaymentsPage.jsx';
+
 // Routing Component
 import PrivateRoute from './components/routing/PrivateRoute';
 
@@ -184,6 +187,17 @@ function App() {
           <Route path="/tenant/maintenance/:id" element={
             <PrivateRoute role="tenant">
               <PropertyView />
+            </PrivateRoute>
+          } />
+          {/* Payment Routes */}
+          <Route path="/tenant/payments" element={
+            <PrivateRoute role="tenant">
+              <PaymentsPage />
+            </PrivateRoute>
+          } />
+          <Route path="/tenant/payments/:invoiceId" element={
+            <PrivateRoute role="tenant">
+              <PaymentsPage />
             </PrivateRoute>
           } />
           

@@ -116,7 +116,12 @@ const TenantDashboard: React.FC = () => {
                     .toFixed(2)}
                 </span>
               </div>
-              <Button variant="primary" size="sm">View All Invoices</Button>
+              <div className="d-flex gap-2">
+                <Link to="/tenant/payments">
+                  <Button variant="primary" size="sm">Make Payment</Button>
+                </Link>
+                <Button variant="outline-secondary" size="sm">View All Invoices</Button>
+              </div>
             </Card.Body>
           </Card>
         </Col>
@@ -177,6 +182,7 @@ const TenantDashboard: React.FC = () => {
                       <th>Amount</th>
                       <th>Due Date</th>
                       <th>Status</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -192,6 +198,13 @@ const TenantDashboard: React.FC = () => {
                           }>
                             {invoice.status}
                           </Badge>
+                        </td>
+                        <td>
+                          {invoice.status !== 'paid' && (
+                            <Link to={`/tenant/payments/${invoice.id}`}>
+                              <Button variant="outline-primary" size="sm">Pay</Button>
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -256,31 +269,27 @@ const TenantDashboard: React.FC = () => {
         </Col>
       </Row>
 
-      <Row className="mt-4">
-        <Col md={6} className="mb-4">
-          <Card className="h-100">
+      <Row>
+        <Col md={12} className="mb-4">
+          <Card className="shadow-sm">
+            <Card.Header className="bg-primary text-white">
+              <h5 className="mb-0">Quick Actions</h5>
+            </Card.Header>
             <Card.Body>
-              <Card.Title>My Applications</Card.Title>
-              <Card.Text>
-                View and manage your rental applications.
-              </Card.Text>
-              <Link to="/tenant/applications" className="btn btn-primary">
-                View Applications
-              </Link>
-            </Card.Body>
-          </Card>
-        </Col>
-        
-        <Col md={6} className="mb-4">
-          <Card className="h-100">
-            <Card.Body>
-              <Card.Title>Browse Properties</Card.Title>
-              <Card.Text>
-                Find and apply for available rental properties.
-              </Card.Text>
-              <Link to="/tenant/properties" className="btn btn-primary">
-                Browse Properties
-              </Link>
+              <div className="d-flex flex-wrap gap-2">
+                <Link to="/tenant/properties">
+                  <Button variant="outline-primary">Browse Properties</Button>
+                </Link>
+                <Link to="/tenant/maintenance/new">
+                  <Button variant="outline-primary">Report Maintenance Issue</Button>
+                </Link>
+                <Link to="/tenant/payments">
+                  <Button variant="outline-primary">Make a Payment</Button>
+                </Link>
+                <Link to="/profile/edit">
+                  <Button variant="outline-primary">Update Profile</Button>
+                </Link>
+              </div>
             </Card.Body>
           </Card>
         </Col>

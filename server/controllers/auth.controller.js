@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const LandlordDetails = require('../models/LandlordDetails');
+const TenantDetails = require('../models/TenantDetails');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -11,7 +13,11 @@ const JWT_EXPIRE = '30d';
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    console.log('Register request received:', req.body);
+    console.log('Register request received:');
+    console.log('Body:', req.body);
+    console.log('Files:', req.files);
+    console.log('File:', req.file);
+    
     const { name, email, phone, password, role } = req.body;
 
     // Validate required fields
@@ -43,6 +49,30 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Validate role-specific required fields
+    if (role === 'landlord') {
+      if (!req.body.mpesaNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'M-Pesa number is required for landlords'
+        });
+      }
+      
+      if (!req.file && (!req.files || !req.files.ownershipDocument)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Property ownership document is required for landlords'
+        });
+      }
+    } else if (role === 'tenant') {
+      if (!req.body.idNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID number is required for tenants'
+        });
+      }
+    }
+
     // Create user
     console.log('Creating user with data:', { name, email, phone, role: role || 'tenant' });
     const user = await User.create({
@@ -54,10 +84,34 @@ exports.register = async (req, res) => {
     });
 
     console.log('User created successfully:', user);
-    console.log('User type:', typeof user);
-    console.log('User prototype:', Object.getPrototypeOf(user));
-    console.log('User methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(user)));
-    console.log('Has getSignedJwtToken:', typeof user.getSignedJwtToken === 'function');
+
+    // Create role-specific details
+    try {
+      if (role === 'landlord') {
+        const docPath = req.file ? req.file.path : 
+          (req.files && req.files.ownershipDocument ? req.files.ownershipDocument[0].path : '');
+          
+        await LandlordDetails.create({
+          user_id: user.id,
+          mpesa_number: req.body.mpesaNumber,
+          ownership_document_path: docPath
+        });
+        console.log('Landlord details created successfully');
+      } else if (role === 'tenant') {
+        const leasePath = req.file ? req.file.path : 
+          (req.files && req.files.leaseAgreement ? req.files.leaseAgreement[0].path : null);
+          
+        await TenantDetails.create({
+          user_id: user.id,
+          id_number: req.body.idNumber,
+          lease_agreement_path: leasePath
+        });
+        console.log('Tenant details created successfully');
+      }
+    } catch (detailsError) {
+      console.error('Error creating role-specific details:', detailsError);
+      // Consider whether to delete the user if details creation fails
+    }
 
     // Generate token manually if method is missing
     if (typeof user.getSignedJwtToken !== 'function') {
@@ -143,6 +197,14 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
+    
+    // Get role-specific details
+    let roleDetails = null;
+    if (user.role === 'landlord') {
+      roleDetails = await LandlordDetails.findByUserId(user.id);
+    } else if (user.role === 'tenant') {
+      roleDetails = await TenantDetails.findByUserId(user.id);
+    }
 
     res.status(200).json({
       success: true,
@@ -152,7 +214,8 @@ exports.getMe = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        roleDetails
       }
     });
   } catch (error) {
