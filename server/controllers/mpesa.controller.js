@@ -21,6 +21,16 @@ const MPESA_CREDENTIALS = {
   CALLBACK_URL: "https://553e-156-0-232-4.ngrok-free.app/callback" // You may need to update this with your actual callback URL
 };
 
+// Constants for payment flow
+const PAYMENT_TIMEOUT_SECONDS = 120; // 2 minutes timeout for payment completion
+const PAYMENT_STATUS = {
+  PENDING: 'pending',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled'
+};
+
 /**
  * Get M-Pesa API access token
  * @private
@@ -139,25 +149,37 @@ exports.initiateStkPush = async (req, res) => {
       }
     );
 
+    const checkoutRequestId = response.data.CheckoutRequestID;
+    const merchantRequestId = response.data.MerchantRequestID;
+    const expiryTime = new Date(Date.now() + PAYMENT_TIMEOUT_SECONDS * 1000);
+
     // Save transaction to database
     try {
       // Insert transaction record
       await pool.query(
         `INSERT INTO payments 
-          (tenant_id, invoice_id, phone, amount, payment_method, transaction_id, checkout_request_id, merchant_request_id, status, created_at) 
+          (tenant_id, invoice_id, phone, amount, payment_method, transaction_id, checkout_request_id, merchant_request_id, status, created_at, expires_at) 
          VALUES 
-          (?, ?, ?, ?, 'mpesa', ?, ?, ?, 'pending', ?)`,
+          (?, ?, ?, ?, 'mpesa', ?, ?, ?, ?, ?, ?)`,
         [
           req.user.id,
           invoice_id || null,
           formattedPhone,
           amount,
           null, // transaction_id (will be updated when payment completes)
-          response.data.CheckoutRequestID,
-          response.data.MerchantRequestID,
-          new Date()
+          checkoutRequestId,
+          merchantRequestId,
+          PAYMENT_STATUS.PENDING,
+          new Date(),
+          expiryTime
         ]
       );
+      
+      // Set a timeout to check and update payment status after the timeout period
+      setTimeout(async () => {
+        await handlePaymentTimeout(checkoutRequestId);
+      }, PAYMENT_TIMEOUT_SECONDS * 1000);
+      
     } catch (dbError) {
       console.error('Error saving payment to database:', dbError);
       // Continue even if DB insert fails
@@ -165,19 +187,21 @@ exports.initiateStkPush = async (req, res) => {
 
     // Log the request for debugging
     console.log('STK Push initiated:', {
-      CheckoutRequestID: response.data.CheckoutRequestID,
+      CheckoutRequestID: checkoutRequestId,
       ResponseCode: response.data.ResponseCode,
-      CustomerMessage: response.data.CustomerMessage
+      CustomerMessage: response.data.CustomerMessage,
+      ExpiryTime: expiryTime
     });
 
     res.status(200).json({
       success: true,
       message: "Please check your phone and enter M-Pesa PIN to complete the transaction",
       data: {
-        CheckoutRequestID: response.data.CheckoutRequestID,
+        CheckoutRequestID: checkoutRequestId,
         ResponseCode: response.data.ResponseCode,
         ResponseDescription: response.data.ResponseDescription,
-        CustomerMessage: response.data.CustomerMessage
+        CustomerMessage: response.data.CustomerMessage,
+        expiryTime: expiryTime
       }
     });
   } catch (error) {
@@ -189,6 +213,204 @@ exports.initiateStkPush = async (req, res) => {
     });
   }
 };
+
+/**
+ * Handle payment timeout - check status and update if still pending
+ * @private
+ */
+async function handlePaymentTimeout(checkoutRequestId) {
+  try {
+    console.log(`Checking timeout for payment: ${checkoutRequestId}`);
+    
+    // Check current status in database
+    const [rows] = await pool.query(
+      'SELECT * FROM payments WHERE checkout_request_id = ? ORDER BY created_at DESC LIMIT 1',
+      [checkoutRequestId]
+    );
+    
+    if (!rows || rows.length === 0) {
+      console.log(`No payment found with CheckoutRequestID: ${checkoutRequestId}`);
+      return;
+    }
+    
+    const payment = rows[0];
+    
+    // If payment is still pending, check status with M-Pesa
+    if (payment.status === PAYMENT_STATUS.PENDING) {
+      try {
+        // Try to get status from M-Pesa
+        const status = await checkMpesaTransactionStatus(checkoutRequestId);
+        
+        // If we got a definitive status, update with it
+        if (status && status.resultCode !== undefined) {
+          await updatePaymentStatus(checkoutRequestId, status);
+          return;
+        }
+      } catch (statusError) {
+        console.error(`Error checking M-Pesa status: ${statusError.message}`);
+        // Continue to mark as expired if status check fails
+      }
+      
+      // If we reach here, either the status check failed or we didn't get a definitive status
+      // Mark the payment as expired
+      await pool.query(
+        `UPDATE payments SET status = ?, result_desc = ? WHERE checkout_request_id = ? AND status = ?`,
+        [PAYMENT_STATUS.EXPIRED, 'Payment request expired', checkoutRequestId, PAYMENT_STATUS.PENDING]
+      );
+      
+      console.log(`Payment ${checkoutRequestId} marked as expired`);
+      
+      // Notify user about expired payment if possible
+      try {
+        if (payment.tenant_id) {
+          await Notification.create({
+            user_id: payment.tenant_id,
+            title: 'Payment Request Expired',
+            message: `Your payment request of KES ${payment.amount} has expired. Please try again.`,
+            type: 'payment',
+            reference_id: payment.id
+          });
+        }
+      } catch (notifyError) {
+        console.error('Error creating notification:', notifyError);
+      }
+    }
+  } catch (error) {
+    console.error(`Error handling payment timeout: ${error.message}`);
+  }
+}
+
+/**
+ * Check M-Pesa transaction status directly
+ * @private
+ */
+async function checkMpesaTransactionStatus(checkoutRequestId) {
+  try {
+    // Get access token
+    const accessToken = await getAccessToken();
+    
+    // Generate timestamp and password
+    const timestamp = moment().format('YYYYMMDDHHmmss');
+    const password = Buffer.from(MPESA_CREDENTIALS.SHORTCODE + MPESA_CREDENTIALS.PASSKEY + timestamp).toString('base64');
+
+    // Query transaction status
+    const url = "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query";
+    const auth = "Bearer " + accessToken;
+    
+    const response = await axios.post(
+      url,
+      {
+        BusinessShortCode: MPESA_CREDENTIALS.SHORTCODE,
+        Password: password,
+        Timestamp: timestamp,
+        CheckoutRequestID: checkoutRequestId
+      },
+      {
+        headers: {
+          Authorization: auth,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log('M-Pesa status response:', response.data);
+    
+    // Parse the response
+    const resultCode = response.data.ResultCode;
+    const resultDesc = response.data.ResultDesc;
+    
+    return {
+      resultCode,
+      resultDesc,
+      raw: response.data
+    };
+  } catch (error) {
+    console.error('Error checking M-Pesa transaction status:', error.message);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Update payment status based on M-Pesa response
+ * @private
+ */
+async function updatePaymentStatus(checkoutRequestId, status) {
+  try {
+    let paymentStatus;
+    
+    // Map M-Pesa result codes to our payment statuses
+    switch(status.resultCode) {
+      case 0:
+        paymentStatus = PAYMENT_STATUS.COMPLETED;
+        break;
+      case 1037: // Timeout in customer response
+      case 1032: // Transaction canceled by user
+        paymentStatus = PAYMENT_STATUS.CANCELLED;
+        break;
+      case 1: // Insufficient funds
+        paymentStatus = PAYMENT_STATUS.FAILED;
+        break;
+      default:
+        paymentStatus = PAYMENT_STATUS.FAILED;
+    }
+    
+    // Update payment in database
+    await pool.query(
+      `UPDATE payments SET status = ?, result_code = ?, result_desc = ?, updated_at = ? 
+       WHERE checkout_request_id = ? AND status = ?`,
+      [paymentStatus, status.resultCode, status.resultDesc, new Date(), checkoutRequestId, PAYMENT_STATUS.PENDING]
+    );
+    
+    console.log(`Payment ${checkoutRequestId} updated to status: ${paymentStatus}`);
+    
+    // Get payment details for notification
+    const [rows] = await pool.query(
+      'SELECT * FROM payments WHERE checkout_request_id = ? LIMIT 1',
+      [checkoutRequestId]
+    );
+    
+    if (rows && rows.length > 0) {
+      const payment = rows[0];
+      
+      // Create notification for the user
+      if (payment.tenant_id) {
+        let notificationTitle, notificationMessage;
+        
+        if (paymentStatus === PAYMENT_STATUS.COMPLETED) {
+          notificationTitle = 'Payment Successful';
+          notificationMessage = `Your payment of KES ${payment.amount} was successful.`;
+        } else if (paymentStatus === PAYMENT_STATUS.CANCELLED) {
+          notificationTitle = 'Payment Cancelled';
+          notificationMessage = `Your payment of KES ${payment.amount} was cancelled.`;
+        } else if (paymentStatus === PAYMENT_STATUS.FAILED) {
+          notificationTitle = 'Payment Failed';
+          notificationMessage = `Your payment of KES ${payment.amount} failed: ${status.resultDesc}`;
+        }
+        
+        await Notification.create({
+          user_id: payment.tenant_id,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: 'payment',
+          reference_id: payment.id
+        });
+      }
+      
+      // If payment is completed and has an invoice, update the invoice
+      if (paymentStatus === PAYMENT_STATUS.COMPLETED && payment.invoice_id) {
+        await Invoice.updateStatus(payment.invoice_id, 'paid');
+      }
+    }
+    
+    return paymentStatus;
+  } catch (error) {
+    console.error(`Error updating payment status: ${error.message}`);
+    throw error;
+  }
+}
 
 /**
  * @desc    Check STK Push transaction status
@@ -217,7 +439,7 @@ exports.checkTransactionStatus = async (req, res) => {
         const transaction = rows[0];
         
         // If we already have a status other than 'pending', return it
-        if (transaction.status !== 'pending') {
+        if (transaction.status !== PAYMENT_STATUS.PENDING) {
           return res.status(200).json({
             success: true,
             data: {
@@ -231,120 +453,63 @@ exports.checkTransactionStatus = async (req, res) => {
             }
           });
         }
+        
+        // Check if the payment has expired based on expires_at
+        if (transaction.expires_at && new Date() > new Date(transaction.expires_at)) {
+          // Mark as expired and return expired status
+          await pool.query(
+            `UPDATE payments SET status = ?, result_desc = ?, updated_at = ? WHERE id = ?`,
+            [PAYMENT_STATUS.EXPIRED, 'Payment request expired', new Date(), transaction.id]
+          );
+          
+          return res.status(200).json({
+            success: true,
+            data: {
+              status: PAYMENT_STATUS.EXPIRED,
+              resultDesc: 'Payment request expired',
+              amount: transaction.amount
+            }
+          });
+        }
       }
     } catch (dbError) {
       console.log('Database query error:', dbError);
       // Continue with API call even if DB query fails
     }
 
-    // Get access token
-    const accessToken = await getAccessToken();
-    
-    // Generate timestamp and password
-    const timestamp = moment().format('YYYYMMDDHHmmss');
-    const password = Buffer.from(MPESA_CREDENTIALS.SHORTCODE + MPESA_CREDENTIALS.PASSKEY + timestamp).toString('base64');
-
-    // Query transaction status
-    const url = "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query";
-    const auth = "Bearer " + accessToken;
-    
     try {
-      const response = await axios.post(
-        url,
-        {
-          BusinessShortCode: MPESA_CREDENTIALS.SHORTCODE,
-          Password: password,
-          Timestamp: timestamp,
-          CheckoutRequestID: checkoutRequestId
-        },
-        {
-          headers: {
-            Authorization: auth,
-            "Content-Type": "application/json"
-          }
-        }
-      );
+      // Check status with M-Pesa
+      const status = await checkMpesaTransactionStatus(checkoutRequestId);
       
-      // Process successful response
+      // Update payment status in our database
+      const paymentStatus = await updatePaymentStatus(checkoutRequestId, status);
+      
+      // Return the status to the client
       return res.status(200).json({
         success: true,
         data: {
-          status: 'success',
-          resultCode: response.data.ResultCode,
-          resultDesc: response.data.ResultDesc,
-          amount: response.data.Amount,
-          mpesaReceipt: response.data.MpesaReceiptNumber,
-          completedAt: new Date()
+          status: paymentStatus,
+          resultCode: status.resultCode,
+          resultDesc: status.resultDesc,
+          raw: status.raw
         }
       });
-    } catch (apiError) {
-      // Handle specific error case for "transaction is being processed"
-      if (apiError.response && 
-          apiError.response.status === 500 && 
-          apiError.response.data && 
-          apiError.response.data.errorMessage === 'The transaction is being processed') {
-        
-        // Return a pending status
-        return res.status(200).json({
-          success: true,
-          data: {
-            status: 'pending',
-            resultCode: null,
-            resultDesc: 'The transaction is being processed',
-            checkoutRequestId: checkoutRequestId
-          }
-        });
-      }
+    } catch (statusError) {
+      console.error('Error checking status with M-Pesa:', statusError);
       
-      // Check if the error indicates a cancelled transaction
-      if (apiError.response && 
-          apiError.response.data && 
-          apiError.response.data.ResultCode === 1032) {
-        
-        // Update database to mark as cancelled
-        try {
-          await pool.query(
-            `UPDATE payments SET 
-              status = 'cancelled', 
-              result_code = 1032, 
-              result_desc = 'Request cancelled by user',
-              completed_at = ?
-            WHERE checkout_request_id = ?`,
-            [new Date(), checkoutRequestId]
-          );
-        } catch (dbError) {
-          console.error('Error updating payment status:', dbError);
-        }
-        
-        // Return cancelled status
-        return res.status(200).json({
-          success: true,
-          data: {
-            status: 'cancelled',
-            resultCode: 1032,
-            resultDesc: 'Request cancelled by user',
-            checkoutRequestId: checkoutRequestId,
-            completedAt: new Date()
-          }
-        });
-      }
-      
-      // For other errors, log them but don't expose details to client
-      console.error('Check transaction status error:', apiError);
-      
-      // Return a generic pending status
+      // Return pending status if we couldn't check with M-Pesa
       return res.status(200).json({
         success: true,
         data: {
-          status: 'pending',
-          resultDesc: 'Status check in progress',
-          checkoutRequestId: checkoutRequestId
+          status: PAYMENT_STATUS.PENDING,
+          resultDesc: 'Payment status check in progress',
+          error: statusError.message
         }
       });
     }
   } catch (error) {
-    console.error('Check transaction status error:', error);
-    return res.status(500).json({
+    console.error('Transaction status check error:', error);
+    res.status(500).json({
       success: false,
       message: 'Failed to check transaction status',
       error: error.message
@@ -700,5 +865,177 @@ exports.getUserTransactions = async (req, res) => {
   } catch (error) {
     console.error('Get user transactions error:', error);
     return res.status(500).json({ success: false, message: 'Failed to get transactions' });
+  }
+};
+
+/**
+ * @desc    Retry a failed or expired payment
+ * @route   POST /api/mpesa/retry/:paymentId
+ * @access  Private (Tenant only)
+ */
+exports.retryPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    
+    // Validate payment ID
+    if (!paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment ID is required'
+      });
+    }
+    
+    // Get payment details
+    const [rows] = await pool.query(
+      'SELECT * FROM payments WHERE id = ? LIMIT 1',
+      [paymentId]
+    );
+    
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+    
+    const payment = rows[0];
+    
+    // Check if payment belongs to the current user
+    if (payment.tenant_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to retry this payment'
+      });
+    }
+    
+    // Check if payment can be retried (only failed, expired, or cancelled payments)
+    const retryableStatuses = [PAYMENT_STATUS.FAILED, PAYMENT_STATUS.EXPIRED, PAYMENT_STATUS.CANCELLED];
+    if (!retryableStatuses.includes(payment.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot retry payment with status: ${payment.status}`
+      });
+    }
+    
+    // Create a new payment request
+    // Use the original payment details but create a new request
+    const paymentData = {
+      phone: payment.phone,
+      amount: payment.amount,
+      invoice_id: payment.invoice_id
+    };
+    
+    // Format phone number (remove leading 0 or +254)
+    let formattedPhone = paymentData.phone;
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '254' + formattedPhone.slice(1);
+    } else if (formattedPhone.startsWith('+254')) {
+      formattedPhone = formattedPhone.substring(1);
+    }
+
+    // Get access token
+    const accessToken = await getAccessToken();
+    
+    // Generate timestamp and password
+    const timestamp = moment().format('YYYYMMDDHHmmss');
+    const password = Buffer.from(MPESA_CREDENTIALS.SHORTCODE + MPESA_CREDENTIALS.PASSKEY + timestamp).toString('base64');
+
+    // Prepare STK push request
+    const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
+    const auth = "Bearer " + accessToken;
+    
+    // Account reference (use invoice ID if provided)
+    const accountReference = paymentData.invoice_id ? `Invoice #${paymentData.invoice_id}` : 'Rent Payment';
+    const callbackUrl = paymentData.invoice_id ? 
+      `${MPESA_CREDENTIALS.CALLBACK_URL}?invoice_id=${paymentData.invoice_id}` : 
+      MPESA_CREDENTIALS.CALLBACK_URL;
+    
+    const response = await axios.post(
+      url,
+      {
+        BusinessShortCode: MPESA_CREDENTIALS.SHORTCODE,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: "CustomerPayBillOnline",
+        Amount: paymentData.amount,
+        PartyA: formattedPhone,
+        PartyB: MPESA_CREDENTIALS.SHORTCODE,
+        PhoneNumber: formattedPhone,
+        CallBackURL: callbackUrl,
+        AccountReference: accountReference,
+        TransactionDesc: "Retry: Rent Payment via M-Pesa"
+      },
+      {
+        headers: {
+          Authorization: auth,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const checkoutRequestId = response.data.CheckoutRequestID;
+    const merchantRequestId = response.data.MerchantRequestID;
+    const expiryTime = new Date(Date.now() + PAYMENT_TIMEOUT_SECONDS * 1000);
+
+    // Save transaction to database
+    try {
+      // Insert transaction record
+      await pool.query(
+        `INSERT INTO payments 
+          (tenant_id, invoice_id, phone, amount, payment_method, transaction_id, checkout_request_id, merchant_request_id, status, created_at, expires_at, retry_of) 
+         VALUES 
+          (?, ?, ?, ?, 'mpesa', ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          req.user.id,
+          paymentData.invoice_id || null,
+          formattedPhone,
+          paymentData.amount,
+          null, // transaction_id (will be updated when payment completes)
+          checkoutRequestId,
+          merchantRequestId,
+          PAYMENT_STATUS.PENDING,
+          new Date(),
+          expiryTime,
+          payment.id // Link to the original payment being retried
+        ]
+      );
+      
+      // Set a timeout to check and update payment status after the timeout period
+      setTimeout(async () => {
+        await handlePaymentTimeout(checkoutRequestId);
+      }, PAYMENT_TIMEOUT_SECONDS * 1000);
+      
+    } catch (dbError) {
+      console.error('Error saving payment to database:', dbError);
+      // Continue even if DB insert fails
+    }
+
+    // Log the request for debugging
+    console.log('STK Push retry initiated:', {
+      CheckoutRequestID: checkoutRequestId,
+      ResponseCode: response.data.ResponseCode,
+      CustomerMessage: response.data.CustomerMessage,
+      ExpiryTime: expiryTime,
+      OriginalPaymentId: payment.id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Please check your phone and enter M-Pesa PIN to complete the transaction",
+      data: {
+        CheckoutRequestID: checkoutRequestId,
+        ResponseCode: response.data.ResponseCode,
+        ResponseDescription: response.data.ResponseDescription,
+        CustomerMessage: response.data.CustomerMessage,
+        expiryTime: expiryTime
+      }
+    });
+  } catch (error) {
+    console.error('Payment retry error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retry payment',
+      error: error.response?.data || error.message
+    });
   }
 }; 

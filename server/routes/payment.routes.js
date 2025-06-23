@@ -8,7 +8,8 @@ const {
   getInvoicePayments,
   generateReceipt,
   initiateMpesaPayment,
-  mpesaCallback
+  mpesaCallback,
+  getPaymentsByInvoice
 } = require('../controllers/payment.controller');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -36,5 +37,8 @@ router.post('/', authorize('landlord', 'admin'), createPayment);
 // Admin only routes
 router.put('/:id', authorize('admin'), updatePayment);
 router.delete('/:id', authorize('admin'), deletePayment);
+
+// Get payments for a specific invoice
+router.get('/invoice/:invoiceId', getPaymentsByInvoice);
 
 module.exports = router; 

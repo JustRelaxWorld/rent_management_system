@@ -11,5 +11,6 @@ router.post('/stkpush', protect, mpesaController.initiateStkPush);
 router.get('/status/:checkoutRequestId', protect, mpesaController.checkTransactionStatus);
 router.get('/transactions', protect, mpesaController.getUserTransactions);
 router.get('/access-token', protect, mpesaController.getAccessTokenEndpoint);
+router.post('/retry/:paymentId', protect, mpesaController.retryPayment);
 
 module.exports = router; 

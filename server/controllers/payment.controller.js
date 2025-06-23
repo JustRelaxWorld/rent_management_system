@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Property = require('../models/Property');
 const Notification = require('../models/Notification');
 const axios = require('axios');
+const pool = require('../config/db');
 
 // @desc    Get all payments
 // @route   GET /api/payments
@@ -539,6 +540,60 @@ exports.mpesaCallback = async (req, res) => {
     });
   } catch (error) {
     console.error('M-Pesa callback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get payments by invoice ID
+ * @route   GET /api/payments/invoice/:invoiceId
+ * @access  Private
+ */
+exports.getPaymentsByInvoice = async (req, res) => {
+  try {
+    const { invoiceId } = req.params;
+    
+    // Validate invoice ID
+    if (!invoiceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invoice ID is required'
+      });
+    }
+    
+    // Get payments for this invoice
+    const [rows] = await pool.query(
+      `SELECT p.*, u.name as tenant_name
+       FROM payments p
+       LEFT JOIN users u ON p.tenant_id = u.id
+       WHERE p.invoice_id = ?
+       ORDER BY p.created_at DESC`,
+      [invoiceId]
+    );
+    
+    // Check if user is authorized to view these payments
+    const isAuthorized = req.user.role === 'admin' || 
+                         req.user.role === 'landlord' || 
+                         rows.some(payment => payment.tenant_id === req.user.id);
+    
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view these payments'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      count: rows.length,
+      data: rows
+    });
+  } catch (error) {
+    console.error('Error fetching payments by invoice:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

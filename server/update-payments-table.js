@@ -1,5 +1,6 @@
 const mysql = require('mysql2/promise');
 const dotenv = require('dotenv');
+const { pool } = require('./config/db');
 
 // Load environment variables
 dotenv.config();
@@ -118,12 +119,63 @@ const updatePaymentsTable = async () => {
         console.log('Added phone column');
       }
       
+      // Check for expires_at column
+      const [expiresAtColumns] = await connection.query(
+        "SHOW COLUMNS FROM payments LIKE 'expires_at'"
+      );
+      
+      if (expiresAtColumns.length === 0) {
+        console.log('Adding expires_at column...');
+        await connection.query(
+          "ALTER TABLE payments ADD COLUMN expires_at DATETIME NULL AFTER created_at"
+        );
+        console.log('Added expires_at column');
+      }
+      
       // Update the status enum to include 'cancelled'
       console.log('Updating status enum to include cancelled...');
       await connection.query(
         "ALTER TABLE payments MODIFY COLUMN status ENUM('success', 'pending', 'failed', 'cancelled') DEFAULT 'pending'"
       );
       console.log('Updated status enum');
+      
+      // Check if status column has the correct values
+      const [statusConstraint] = await connection.query(`
+        SELECT COLUMN_NAME, COLUMN_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'payments' 
+        AND COLUMN_NAME = 'status'
+      `);
+      
+      if (statusConstraint.length > 0) {
+        const currentType = statusConstraint[0].COLUMN_TYPE;
+        
+        // If the status column doesn't have the correct enum values
+        if (!currentType.includes('expired') || !currentType.includes('cancelled')) {
+          // Modify the status column to support all payment statuses
+          await connection.query(`
+            ALTER TABLE payments 
+            MODIFY COLUMN status ENUM('pending', 'completed', 'failed', 'expired', 'cancelled') NOT NULL DEFAULT 'pending'
+          `);
+          console.log('Successfully updated status column in payments table');
+        } else {
+          console.log('status column already has the correct values');
+        }
+      }
+      
+      // Check for retry_of column
+      const [retryColumns] = await connection.query(
+        "SHOW COLUMNS FROM payments LIKE 'retry_of'"
+      );
+      
+      if (retryColumns.length === 0) {
+        console.log('Adding retry_of column...');
+        await connection.query(
+          "ALTER TABLE payments ADD COLUMN retry_of INT NULL AFTER expires_at, ADD FOREIGN KEY (retry_of) REFERENCES payments(id)"
+        );
+        console.log('Added retry_of column');
+      }
       
       console.log('Payments table structure updated successfully');
     }
