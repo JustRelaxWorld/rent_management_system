@@ -4,6 +4,31 @@ import { Button, Form, Card, Spinner, Alert, ProgressBar } from 'react-bootstrap
 import { useAuth } from '../../utils/auth-context';
 import api from '../../utils/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import styled from 'styled-components';
+import { AnimatePresence, motion } from 'framer-motion';
+
+// Styled components for the modal
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+`;
+
+const ModalContent = styled(motion.div)`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  padding: 1.5rem;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+`;
 
 // Define enhanced payment status modal with React Query for reliable status updates
 const PaymentStatusModal = (props) => {
@@ -22,7 +47,23 @@ const PaymentStatusModal = (props) => {
   const [statusMessage, setStatusMessage] = useState('');
   const [timeLeft, setTimeLeft] = useState(120); // 2 minutes in seconds
   const [expiryTime, setExpiryTime] = useState(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const queryClient = useQueryClient();
+
+  // Reset state when modal is shown
+  useEffect(() => {
+    if (show) {
+      setIsRetrying(false);
+    }
+  }, [show]);
+
+  // Handle retry action
+  const handleRetry = () => {
+    if (onRetry) {
+      // Call parent retry handler directly
+      onRetry();
+    }
+  };
 
   // Extract checkout request ID from transaction details
   const checkoutRequestID = transactionDetails?.CheckoutRequestID;
@@ -165,100 +206,112 @@ const PaymentStatusModal = (props) => {
 
   const isRetryable = ['failed', 'cancelled', 'expired', 'timeout'].includes(status);
 
+  if (!show) return null;
+
   return (
-    <div className={`modal ${show ? 'show d-block' : 'd-none'}`} tabIndex={-1} role="dialog">
-      <div className="modal-dialog modal-dialog-centered">
-        <div className="modal-content">
-          <div className="modal-body pt-4">
-            <div className="text-center mb-4">
-              {status === 'processing' ? (
-                <>
-                  {timeLeft > 0 && (
-                    <div className="mt-3">
-                      <small className="text-muted">Time remaining: {formatTimeLeft(timeLeft)}</small>
-                      <ProgressBar 
-                        now={timeLeft} 
-                        max={120} 
-                        variant={timeLeft < 30 ? "danger" : timeLeft < 60 ? "warning" : "primary"} 
-                        className="mt-2"
-                      />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div 
-                  className="status-message" 
-                  style={{
-                    fontSize: '1.2rem',
-                    fontWeight: '700',
-                    marginBottom: '1rem',
-                    textAlign: 'center',
-                    padding: '1rem 1.5rem',
-                    borderRadius: '4px',
-                    width: '100%',
-                    backgroundColor: status === 'success' ? '#d4edda' : 
-                                    status === 'failed' || status === 'cancelled' || status === 'expired' ? '#f8d7da' : 
-                                    status === 'timeout' ? '#fff3cd' : '#f8f9fa',
-                    color: status === 'success' ? '#155724' : 
-                           status === 'failed' || status === 'cancelled' || status === 'expired' ? '#721c24' : 
-                           status === 'timeout' ? '#856404' : '#212529'
-                  }}
-                >
-                  {getStatusTitle()}
-                </div>
-              )}
+    <AnimatePresence>
+      {show && (
+        <ModalOverlay>
+          <ModalContent
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="modal-body pt-4">
+              <div className="text-center mb-4">
+                {status === 'processing' ? (
+                  <>
+                    <h5 className="mb-3">Processing Payment</h5>
+                    <p>Please check your phone and enter your M-Pesa PIN when prompted.</p>
+                    {timeLeft > 0 && (
+                      <div className="mt-3">
+                        <small className="text-muted">Time remaining: {formatTimeLeft(timeLeft)}</small>
+                        <ProgressBar 
+                          now={timeLeft} 
+                          max={120} 
+                          variant={timeLeft < 30 ? "danger" : timeLeft < 60 ? "warning" : "primary"} 
+                          className="mt-2"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div 
+                    className="status-message" 
+                    style={{
+                      fontSize: '1.2rem',
+                      fontWeight: '700',
+                      marginBottom: '1rem',
+                      textAlign: 'center',
+                      padding: '1rem 1.5rem',
+                      borderRadius: '4px',
+                      width: '100%',
+                      backgroundColor: status === 'success' ? '#d4edda' : 
+                                      status === 'failed' || status === 'cancelled' || status === 'expired' ? '#f8d7da' : 
+                                      status === 'timeout' ? '#fff3cd' : '#f8f9fa',
+                      color: status === 'success' ? '#155724' : 
+                             status === 'failed' || status === 'cancelled' || status === 'expired' ? '#721c24' : 
+                             status === 'timeout' ? '#856404' : '#212529'
+                    }}
+                  >
+                    {getStatusTitle()}
+                  </div>
+                )}
+                
+                {status !== 'processing' && <p className="mt-3">{getStatusMessage()}</p>}
+              </div>
               
-              <p className="mt-3">{getStatusMessage()}</p>
+              {transactionDetails && (
+                <>
+                  <hr />
+                  <h6>Transaction Details:</h6>
+                  <ul className="list-group list-group-flush small">
+                    {transactionDetails.CheckoutRequestID && (
+                      <li className="list-group-item d-flex justify-content-between">
+                        <span>Request ID:</span>
+                        <span className="text-muted">{transactionDetails.CheckoutRequestID}</span>
+                      </li>
+                    )}
+                    {transactionDetails.CustomerMessage && (
+                      <li className="list-group-item d-flex justify-content-between">
+                        <span>Message:</span>
+                        <span className="text-muted">{transactionDetails.CustomerMessage}</span>
+                      </li>
+                    )}
+                    {transactionDetails.amount && (
+                      <li className="list-group-item d-flex justify-content-between">
+                        <span>Amount:</span>
+                        <span className="text-muted">KES {transactionDetails.amount}</span>
+                      </li>
+                    )}
+                  </ul>
+                </>
+              )}
             </div>
-            
-            {transactionDetails && (
-              <>
-                <hr />
-                <h6>Transaction Details:</h6>
-                <ul className="list-group list-group-flush small">
-                  {transactionDetails.CheckoutRequestID && (
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Request ID:</span>
-                      <span className="text-muted">{transactionDetails.CheckoutRequestID}</span>
-                    </li>
-                  )}
-                  {transactionDetails.CustomerMessage && (
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Message:</span>
-                      <span className="text-muted">{transactionDetails.CustomerMessage}</span>
-                    </li>
-                  )}
-                  {transactionDetails.amount && (
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Amount:</span>
-                      <span className="text-muted">KES {transactionDetails.amount}</span>
-                    </li>
-                  )}
-                </ul>
-              </>
-            )}
-          </div>
-          <div className="modal-footer">
-            {isRetryable && (
+            <div className="modal-footer">
+              {isRetryable && (
+                <Button 
+                  variant="primary" 
+                  onClick={handleRetry}
+                  className="me-2"
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? 'Retrying...' : 'Retry Payment'}
+                </Button>
+              )}
               <Button 
-                variant="primary" 
-                onClick={onRetry}
-                className="me-2"
+                variant={status === 'success' ? "success" : "secondary"} 
+                onClick={onHide} 
+                disabled={status === 'processing'}
               >
-                Retry Payment
+                {status === 'success' ? 'Done' : 'Close'}
               </Button>
-            )}
-            <Button 
-              variant={status === 'success' ? "success" : "secondary"} 
-              onClick={onHide} 
-              disabled={status === 'processing'}
-            >
-              {status === 'success' ? 'Done' : 'Close'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -322,10 +375,6 @@ const MpesaPaymentForm = (props) => {
         formattedPhone = '0' + formattedPhone;
       }
 
-      // Show modal with pending status
-      setShowModal(true);
-      setPaymentStatus('processing');
-      
       // Send payment request
       const response = await api.post('/api/mpesa/stkpush', {
         phone: formattedPhone,
@@ -338,29 +387,27 @@ const MpesaPaymentForm = (props) => {
       
       // Update status based on response
       if (response.data.success) {
-        // Status will be updated by polling in the modal
+        // Show modal with processing status
+        setPaymentStatus('processing');
+        setShowModal(true);
       } else {
         setPaymentStatus('failed');
-        setError(response.data.message || 'Payment request failed');
+        setError(response.data.message || 'Failed to initiate payment');
       }
     } catch (err) {
       console.error('Payment error:', err);
       setPaymentStatus('failed');
-      setError(err.response?.data?.message || err.message || 'An error occurred');
-      setShowModal(true);
+      setError(err.response?.data?.message || err.message || 'Failed to process payment');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle payment status updates
   const handlePaymentSuccess = (paymentData) => {
     setPaymentStatus('success');
+    
     // Update transaction details with payment data
     setTransactionDetails(prev => ({ ...prev, ...paymentData }));
-    
-    // Refresh payment history
-    queryClient.invalidateQueries({ queryKey: ['paymentHistory', invoiceId] });
     
     // Notify parent component if callback provided
     if (onPaymentComplete) {
@@ -388,34 +435,52 @@ const MpesaPaymentForm = (props) => {
   };
 
   const handleRetryPayment = async () => {
-    setError(null);
-    setLoading(true);
+    // Close the current modal completely
+    setShowModal(false);
     
-    try {
-      // Reset UI state
-      setShowModal(true);
+    // Clear all previous payment state
+    queryClient.removeQueries({ queryKey: ['paymentStatus'] });
+    
+    // Small delay to ensure complete reset
+    setTimeout(async () => {
+      // Reset all state to initial values
+      setError(null);
+      setLoading(true);
       setPaymentStatus('processing');
+      setTransactionDetails(null);
       
-      // Create a new payment request
-      const response = await api.post('/api/mpesa/stkpush', {
-        phone: phoneNumber,
-        amount: parseFloat(amount),
-        invoice_id: reference
-      });
-
-      // Update transaction details with response data
-      setTransactionDetails(response.data.data);
-      
-    } catch (err) {
-      console.error('Payment retry error:', err);
-      setPaymentStatus('failed');
-      setError(err.response?.data?.message || err.message || 'Failed to retry payment');
-    } finally {
-      setLoading(false);
-    }
+      try {
+        // Start a completely fresh payment request
+        const response = await api.post('/api/mpesa/stkpush', {
+          phone: phoneNumber,
+          amount: parseFloat(amount),
+          invoice_id: reference
+        });
+        
+        if (response.data.success) {
+          // Set transaction details with fresh data
+          setTransactionDetails(response.data.data);
+          
+          // Open modal with processing state
+          setShowModal(true);
+        } else {
+          throw new Error(response.data.message || 'Failed to initiate payment');
+        }
+      } catch (err) {
+        console.error('Payment retry error:', err);
+        setPaymentStatus('failed');
+        setError(err.response?.data?.message || err.message || 'Failed to retry payment');
+        
+        // Only show modal with error state if we couldn't even start the process
+        setShowModal(true);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
   };
 
   const handleModalClose = () => {
+    // Simply hide the modal
     setShowModal(false);
     
     // If payment was successful, redirect or update UI as needed
