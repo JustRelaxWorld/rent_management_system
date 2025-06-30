@@ -70,8 +70,42 @@ exports.getProperty = async (req, res) => {
 // @access  Private (Landlord only)
 exports.createProperty = async (req, res) => {
   try {
+    // Debug file upload
+    console.log('File in request:', req.file);
+    console.log('Files in request:', req.files);
+    console.log('Request body:', req.body);
+    
+    // Validate required fields
+    const requiredFields = ['title', 'address', 'city', 'rent_amount', 'bedrooms', 'bathrooms'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+    
     // Add user ID to request body
     req.body.landlord_id = req.user.id;
+    
+    // Handle image upload if present
+    if (req.file) {
+      console.log('Image file found:', req.file);
+      req.body.image_url = req.file.path.replace(/\\/g, '/'); // Normalize path for Windows
+      console.log('Set image_url to:', req.body.image_url);
+    } else if (req.files && req.files.length > 0) {
+      console.log('Image files found:', req.files);
+      req.body.image_url = req.files[0].path.replace(/\\/g, '/'); // Normalize path for Windows
+      console.log('Set image_url to:', req.body.image_url);
+    } else {
+      console.log('No image file found in request');
+    }
+    
+    // Convert is_available to integer (MySQL expects 1 or 0, not true/false)
+    if (req.body.is_available !== undefined) {
+      req.body.is_available = req.body.is_available === true || req.body.is_available === 'true' ? 1 : 0;
+    }
     
     // Create property
     const property = await Property.create(req.body);
@@ -110,6 +144,16 @@ exports.updateProperty = async (req, res) => {
         success: false,
         message: 'Not authorized to update this property'
       });
+    }
+    
+    // Handle image upload if present
+    if (req.file) {
+      req.body.image_url = req.file.path.replace(/\\/g, '/'); // Normalize path for Windows
+    }
+    
+    // Convert is_available to integer (MySQL expects 1 or 0, not true/false)
+    if (req.body.is_available !== undefined) {
+      req.body.is_available = req.body.is_available === true || req.body.is_available === 'true' ? 1 : 0;
     }
     
     // Update property
@@ -270,6 +314,150 @@ exports.assignTenant = async (req, res) => {
     });
   } catch (error) {
     console.error('Assign tenant error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Upload property images
+// @route   POST /api/properties/:id/images
+// @access  Private (Landlord only)
+exports.uploadPropertyImages = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+    
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+    
+    // Make sure user is property owner
+    if (property.landlord_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to upload images for this property'
+      });
+    }
+    
+    // Check if files were uploaded
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload at least one image'
+      });
+    }
+    
+    // Process uploaded files
+    const imagePaths = req.files.map(file => file.path.replace(/\\/g, '/'));
+    
+    // Set the first image as the main image_url if it doesn't have one yet
+    if (!property.image_url && imagePaths.length > 0) {
+      await Property.update(req.params.id, { image_url: imagePaths[0] });
+    }
+    
+    // Update the images array
+    const currentImages = property.images || [];
+    const updatedImages = [...currentImages, ...imagePaths];
+    
+    await Property.update(req.params.id, { images: updatedImages });
+    
+    // Get updated property
+    const updatedProperty = await Property.findById(req.params.id);
+    
+    res.status(200).json({
+      success: true,
+      data: updatedProperty,
+      message: 'Images uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload property images error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Delete property image
+// @route   DELETE /api/properties/:id/images/:imageIndex
+// @access  Private (Landlord only)
+exports.deletePropertyImage = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+    
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+    
+    // Make sure user is property owner
+    if (property.landlord_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete images for this property'
+      });
+    }
+    
+    const imageIndex = parseInt(req.params.imageIndex);
+    
+    // Check if index is valid
+    if (isNaN(imageIndex) || imageIndex < 0 || !property.images || imageIndex >= property.images.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image index'
+      });
+    }
+    
+    // Get the image path to delete
+    const imageToDelete = property.images[imageIndex];
+    
+    // Check if this is also the main image
+    if (property.image_url === imageToDelete) {
+      // Reset main image to another image or null
+      const newMainImage = property.images.length > 1 ? 
+        property.images.find(img => img !== imageToDelete) : null;
+      
+      await Property.update(req.params.id, { image_url: newMainImage });
+    }
+    
+    // Remove the image from the array
+    const updatedImages = [...property.images];
+    updatedImages.splice(imageIndex, 1);
+    
+    await Property.update(req.params.id, { images: updatedImages });
+    
+    // Delete the file from the server
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.join(__dirname, '..', '..', imageToDelete);
+      
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (fileError) {
+      console.error('Error deleting image file:', fileError);
+      // Continue execution even if file deletion fails
+    }
+    
+    // Get updated property
+    const updatedProperty = await Property.findById(req.params.id);
+    
+    res.status(200).json({
+      success: true,
+      data: updatedProperty,
+      message: 'Image deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete property image error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

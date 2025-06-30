@@ -16,15 +16,20 @@ class Property {
     this.landlord_id = property.landlord_id;
     this.created_at = property.created_at;
     this.updated_at = property.updated_at;
+    this.images = property.images ? JSON.parse(property.images) : [];
+    this.image_url = property.image_url || null;
   }
 
   // Create a new property
   static async create(propertyData) {
     try {
+      // Convert images array to JSON string if it exists
+      const images = propertyData.images ? JSON.stringify(propertyData.images) : null;
+      
       const [result] = await pool.execute(
         `INSERT INTO properties 
-        (title, description, address, city, type, bedrooms, bathrooms, size, rent_amount, is_available, landlord_id) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (title, description, address, city, type, bedrooms, bathrooms, size, rent_amount, is_available, landlord_id, images, image_url) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           propertyData.title,
           propertyData.description,
@@ -35,12 +40,19 @@ class Property {
           propertyData.bathrooms,
           propertyData.size,
           propertyData.rent_amount,
-          propertyData.is_available || true,
-          propertyData.landlord_id
+          propertyData.is_available !== undefined ? propertyData.is_available : 1,
+          propertyData.landlord_id,
+          images,
+          propertyData.image_url || null
         ]
       );
 
-      return { id: result.insertId, ...propertyData };
+      return { 
+        id: result.insertId, 
+        ...propertyData,
+        images: propertyData.images || [],
+        image_url: propertyData.image_url || null
+      };
     } catch (error) {
       throw error;
     }
@@ -107,8 +119,18 @@ class Property {
       }
       
       const [rows] = await pool.execute(query, queryParams);
+      
+      // Log image URLs for debugging
+      if (rows && rows.length > 0) {
+        console.log('Property image URLs:');
+        rows.forEach(property => {
+          console.log(`Property ${property.id}: ${property.image_url}`);
+        });
+      }
+      
       return rows.map(row => new Property(row));
     } catch (error) {
+      console.error('Error in Property.findAll:', error);
       throw error;
     }
   }
@@ -122,8 +144,13 @@ class Property {
       // Build dynamic update query
       Object.keys(propertyData).forEach(key => {
         if (key !== 'id') {
-          updateFields.push(`${key} = ?`);
-          values.push(propertyData[key]);
+          if (key === 'images' && Array.isArray(propertyData.images)) {
+            updateFields.push(`${key} = ?`);
+            values.push(JSON.stringify(propertyData.images));
+          } else {
+            updateFields.push(`${key} = ?`);
+            values.push(propertyData[key]);
+          }
         }
       });
 
@@ -192,6 +219,23 @@ class Property {
       );
       
       return { id: result.insertId, property_id: propertyId, tenant_id: tenantId };
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  // Get properties rented by a tenant
+  static async findByTenantId(tenantId) {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT p.* 
+         FROM properties p
+         JOIN leases l ON p.id = l.property_id
+         WHERE l.tenant_id = ? AND l.status = 'active'`,
+        [tenantId]
+      );
+      
+      return rows.map(row => new Property(row));
     } catch (error) {
       throw error;
     }

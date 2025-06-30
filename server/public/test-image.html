@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .image-container {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Path Test</h1>
+  
+  <div class="image-container">
+    <h2>Test 1: Direct Path</h2>
+    <img src="/uploads/properties/test.jpg" alt="Test Image 1" onerror="console.error('Failed to load image 1'); this.src='https://via.placeholder.com/300x200?text=Failed+to+Load'">
+    <p>Path: /uploads/properties/test.jpg</p>
+  </div>
+
+  <div class="image-container">
+    <h2>Test 2: Relative Path</h2>
+    <img src="../uploads/properties/test.jpg" alt="Test Image 2" onerror="console.error('Failed to load image 2'); this.src='https://via.placeholder.com/300x200?text=Failed+to+Load'">
+    <p>Path: ../uploads/properties/test.jpg</p>
+  </div>
+
+  <div class="image-container">
+    <h2>Test 3: Absolute Path</h2>
+    <img src="http://localhost:5000/uploads/properties/test.jpg" alt="Test Image 3" onerror="console.error('Failed to load image 3'); this.src='https://via.placeholder.com/300x200?text=Failed+to+Load'">
+    <p>Path: http://localhost:5000/uploads/properties/test.jpg</p>
+  </div>
+
+  <script>
+    // Log page load
+    console.log('Test page loaded');
+  </script>
+</body>
+</html> 
