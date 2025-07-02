@@ -182,7 +182,7 @@ const AddProperty: React.FC = () => {
         });
         
         // Append the image with the correct field name
-        formDataToSubmit.append('image', selectedImage);
+        formDataToSubmit.append('images', selectedImage);
         
         // Submit with multipart/form-data
         const response = await api.post('/api/properties', formDataToSubmit, {

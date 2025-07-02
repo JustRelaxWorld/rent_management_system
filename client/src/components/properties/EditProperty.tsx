@@ -267,7 +267,7 @@ const EditProperty: React.FC = () => {
         });
 
         // Append the image
-        formDataToSubmit.append("image", selectedImage);
+        formDataToSubmit.append("images", selectedImage);
 
         // Submit with multipart/form-data
         await api.put(`/api/properties/${id}`, formDataToSubmit, {
