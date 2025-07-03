@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .image-container {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin-bottom: 10px;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Path Test</h1>
+  
+  <div class="image-container">
+    <h2>Test 1: Direct Path</h2>
+    <img src="/uploads/properties/test.jpg" alt="Test Image 1" onerror="this.parentNode.innerHTML += '<p class=\'error\'>Failed to load image: /uploads/properties/test.jpg</p>';" onload="this.parentNode.innerHTML += '<p class=\'success\'>Successfully loaded image</p>';">
+  </div>
+
+  <div class="image-container">
+    <h2>Test 2: Relative Path</h2>
+    <img src="../uploads/properties/test.jpg" alt="Test Image 2" onerror="this.parentNode.innerHTML += '<p class=\'error\'>Failed to load image: ../uploads/properties/test.jpg</p>';" onload="this.parentNode.innerHTML += '<p class=\'success\'>Successfully loaded image</p>';">
+  </div>
+
+  <div class="image-container">
+    <h2>Test 3: Absolute Path</h2>
+    <img src="http://localhost:5000/uploads/properties/test.jpg" alt="Test Image 3" onerror="this.parentNode.innerHTML += '<p class=\'error\'>Failed to load image: http://localhost:5000/uploads/properties/test.jpg</p>';" onload="this.parentNode.innerHTML += '<p class=\'success\'>Successfully loaded image</p>';">
+  </div>
+
+  <script>
+    // Log image loading errors
+    window.addEventListener('error', function(e) {
+      if (e.target.tagName === 'IMG') {
+        console.error('Image load error:', e.target.src);
+      }
+    }, true);
+  </script>
+</body>
+</html> 

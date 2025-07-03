@@ -1,0 +1,43 @@
+{
+  "name": "rent-management-system-server",
+  "version": "1.0.0",
+  "description": "Rent Management System Backend with M-Pesa Integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "server": "nodemon server.js",
+    "init-db": "node utils/init-db.js",
+    "client": "npm start --prefix ../client",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "keywords": [
+    "rent",
+    "property",
+    "management",
+    "mpesa",
+    "nodejs",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@workos-inc/node": "^7.57.0",
+    "axios": "^1.10.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "mysql2": "^3.14.1",
+    "nodemailer": "^7.0.4",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0",
+    "nodemon": "^2.0.21"
+  }
+}

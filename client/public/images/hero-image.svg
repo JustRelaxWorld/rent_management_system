@@ -1,0 +1,65 @@
+<svg width="800" height="500" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="buildingGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6c757d" />
+      <stop offset="100%" stop-color="#495057" />
+    </linearGradient>
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0d6efd" />
+      <stop offset="100%" stop-color="#0a58ca" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="500" fill="url(#skyGradient)" />
+  
+  <!-- Ground -->
+  <rect x="0" y="400" width="800" height="100" fill="#198754" />
+  
+  <!-- Buildings -->
+  <!-- Building 1 -->
+  <rect x="50" y="150" width="150" height="250" fill="url(#buildingGradient)" />
+  <rect x="70" y="180" width="30" height="40" fill="#ffffff" />
+  <rect x="120" y="180" width="30" height="40" fill="#ffffff" />
+  <rect x="70" y="240" width="30" height="40" fill="#ffffff" />
+  <rect x="120" y="240" width="30" height="40" fill="#ffffff" />
+  <rect x="70" y="300" width="30" height="40" fill="#ffffff" />
+  <rect x="120" y="300" width="30" height="40" fill="#ffffff" />
+  
+  <!-- Building 2 -->
+  <rect x="250" y="100" width="200" height="300" fill="url(#buildingGradient)" />
+  <rect x="280" y="130" width="40" height="50" fill="#ffffff" />
+  <rect x="380" y="130" width="40" height="50" fill="#ffffff" />
+  <rect x="280" y="200" width="40" height="50" fill="#ffffff" />
+  <rect x="380" y="200" width="40" height="50" fill="#ffffff" />
+  <rect x="280" y="270" width="40" height="50" fill="#ffffff" />
+  <rect x="380" y="270" width="40" height="50" fill="#ffffff" />
+  <rect x="330" y="350" width="40" height="50" fill="#ffffff" />
+  
+  <!-- Building 3 -->
+  <rect x="500" y="200" width="180" height="200" fill="url(#buildingGradient)" />
+  <rect x="520" y="220" width="35" height="45" fill="#ffffff" />
+  <rect x="580" y="220" width="35" height="45" fill="#ffffff" />
+  <rect x="640" y="220" width="35" height="45" fill="#ffffff" />
+  <rect x="520" y="280" width="35" height="45" fill="#ffffff" />
+  <rect x="580" y="280" width="35" height="45" fill="#ffffff" />
+  <rect x="640" y="280" width="35" height="45" fill="#ffffff" />
+  <rect x="580" y="340" width="35" height="60" fill="#ffffff" />
+  
+  <!-- House -->
+  <rect x="700" y="300" width="80" height="100" fill="#dc3545" />
+  <polygon points="700,300 740,250 780,300" fill="#dc3545" />
+  <rect x="725" y="350" width="30" height="50" fill="#ffffff" />
+  
+  <!-- Sun -->
+  <circle cx="700" cy="100" r="50" fill="#ffc107" />
+  
+  <!-- Clouds -->
+  <ellipse cx="150" cy="100" rx="50" ry="30" fill="#ffffff" opacity="0.8" />
+  <ellipse cx="180" cy="90" rx="40" ry="25" fill="#ffffff" opacity="0.8" />
+  <ellipse cx="120" cy="90" rx="40" ry="25" fill="#ffffff" opacity="0.8" />
+  
+  <ellipse cx="550" cy="150" rx="60" ry="35" fill="#ffffff" opacity="0.8" />
+  <ellipse cx="580" cy="140" rx="50" ry="30" fill="#ffffff" opacity="0.8" />
+  <ellipse cx="520" cy="140" rx="50" ry="30" fill="#ffffff" opacity="0.8" />
+</svg> 

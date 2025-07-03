@@ -1,0 +1,107 @@
+/* App.css - Minimal styles since we're using Tailwind CSS */
+
+/* Any global styles not covered by Tailwind */
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Animation keyframes that might be needed */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Add a global rule to handle text overflow */
+.app-content {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Make sure all text content within headings is visible */
+h1, h2, h3, h4, h5, h6, p {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+/* Status badge positioning fix */
+.status-badge {
+  position: relative;
+  z-index: 1;
+}
+
+/* Application status badges on property pages */
+.property-card .status-badge-container {
+  z-index: 1;
+  position: relative;
+}
+
+/* Fix grid layout rendering issues */
+.grid {
+  display: grid;
+  width: 100%;
+}
+
+.md\:grid-cols-12 {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+@media (max-width: 768px) {
+  .md\:grid-cols-12 {
+    grid-template-columns: 1fr;
+  }
+  
+  .md\:col-span-7,
+  .md\:col-span-5 {
+    grid-column: span 1 / span 1;
+  }
+}
+
+@media (min-width: 769px) {
+  .md\:col-span-7 {
+    grid-column: span 7 / span 7;
+  }
+  
+  .md\:col-span-5 {
+    grid-column: span 5 / span 5;
+  }
+}
