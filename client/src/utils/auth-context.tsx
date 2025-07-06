@@ -541,8 +541,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = (userData: User) => {
+    if (userData && userData.avatar) {
+      // Ensure the avatar URL has a cache-busting parameter
+      // First check if the avatar URL already has a timestamp parameter
+      if (!userData.avatar.includes('?t=') && !userData.avatar.includes('&t=')) {
+        userData = {
+          ...userData,
+          avatar: `${userData.avatar}${userData.avatar.includes('?') ? '&' : '?'}t=${Date.now()}`
+        };
+      }
+    }
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
+    logDebug('User data updated', userData);
   };
 
   // Forgot Password
